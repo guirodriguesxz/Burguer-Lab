@@ -34,6 +34,7 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/public ./apps/api/public
+COPY --chmod=755 scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # Não roda como root.
 USER node
@@ -44,6 +45,6 @@ ENV PORT=3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# Aplica migrações; com SEED_ON_BOOT=true também faz o seed idempotente (cardápio + usuário admin
-# a partir de ADMIN_EMAIL/ADMIN_PASSWORD) antes de iniciar.
-CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$SEED_ON_BOOT\" = \"true\" ]; then node dist-seed/seed.js; fi && exec node dist/main"]
+
+# Migrações (com novas tentativas), seed opcional (SEED_ON_BOOT=true) e início da API: ver o script.
+CMD ["/app/docker-entrypoint.sh"]
