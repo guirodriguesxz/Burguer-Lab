@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  PREPARING
+  READY
+  DELIVERED
+  CANCELED
+}
+
+enum OrderMode {
+  DINE_IN
+  TAKEAWAY
+}
+
+enum PayMethod {
+  PIX
+  CARD
+}
+
+model Category {
+  id       String    @id
+  label    String
+  emoji    String
+  position Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id          String   @id
+  name        String
+  description String
+  priceCents  Int
+  emoji       String
+  available   Boolean  @default(true)
+  stock       Int?
+  removable   String[]
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  extras      Extra[]
+  orderItems  OrderItem[]
+}
+
+model Extra {
+  id         String  @id
+  name       String
+  priceCents Int
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  number     Int         @unique @default(autoincrement())
+  status     OrderStatus @default(CREATED)
+  mode       OrderMode
+  totalCents Int
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  items      OrderItem[]
+  payment    Payment?
+  history    OrderEvent[]
+}
+
+model OrderItem {
+  id             String   @id @default(uuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  productName    String
+  qty            Int
+  unitPriceCents Int
+  extras         Json     @default("[]")
+  removed        String[]
+}
+
+model Payment {
+  id          String    @id @default(uuid())
+  orderId     String    @unique
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method      PayMethod
+  amountCents Int
+  idempotencyKey String? @unique
+  paidAt      DateTime  @default(now())
+}
+
+model OrderEvent {
+  id        String      @id @default(uuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  from      OrderStatus?
+  to        OrderStatus
+  createdAt DateTime    @default(now())
+}

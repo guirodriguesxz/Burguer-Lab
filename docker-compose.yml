@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: burger
+      POSTGRES_PASSWORD: burger
+      POSTGRES_DB: burgerlab
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U burger -d burgerlab"]
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata:

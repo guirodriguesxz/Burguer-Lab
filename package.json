@@ -1,0 +1,10 @@
+{
+  "name": "burger-lab",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "dev:api": "npm run start:dev -w @burger-lab/api",
+    "dev:kiosk": "npm run dev -w @burger-lab/kiosk"
+  }
+}
