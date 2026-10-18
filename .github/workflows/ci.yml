@@ -40,9 +40,9 @@ jobs:
         working-directory: apps/api
       - name: Typecheck (API, totem e admin)
         run: |
-          npx tsc --noEmit -p apps/api
-          npx tsc -b apps/kiosk
-          npx tsc -b apps/admin
+          npm exec -w @burger-lab/api -- tsc --noEmit
+          npm exec -w @burger-lab/kiosk -- tsc -b
+          npm exec -w @burger-lab/admin -- tsc -b
       - name: Testes unitários
         run: npm test -w @burger-lab/api
       - name: Testes de integração (Postgres real)
