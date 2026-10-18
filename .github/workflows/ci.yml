@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  test:
+    name: Typecheck, unitários e integração
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: burger
+          POSTGRES_PASSWORD: burger
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U burger" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://burger:burger@localhost:5432/burgerlab_test?schema=public
+      DATABASE_URL: postgresql://burger:burger@localhost:5432/burgerlab_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+        working-directory: apps/api
+      - name: Typecheck (API, totem e admin)
+        run: |
+          npx tsc --noEmit -p apps/api
+          npx tsc -b apps/kiosk
+          npx tsc -b apps/admin
+      - name: Testes unitários
+        run: npm test -w @burger-lab/api
+      - name: Testes de integração (Postgres real)
+        run: npm run test:int -w @burger-lab/api
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: burger
+          POSTGRES_PASSWORD: burger
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U burger" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      E2E_DATABASE_URL: postgresql://burger:burger@localhost:5432/burgerlab_e2e?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+        working-directory: apps/api
+      - name: Build (totem + admin + API)
+        run: npm run build
+      # As imagens do GitHub já trazem o Google Chrome; o Playwright usa channel "chrome".
+      - name: E2E
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  docker:
+    name: Imagem Docker (build + smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Sobe o compose de produção com segredos descartáveis
+        run: |
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=$(openssl rand -hex 16)
+          JWT_SECRET=$(openssl rand -hex 32)
+          PIX_WEBHOOK_SECRET=$(openssl rand -hex 32)
+          ADMIN_EMAIL=ci@example.com
+          ADMIN_PASSWORD=$(openssl rand -hex 16)
+          SEED_ON_BOOT=true
+          EOF
+          docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 180
+      - name: Smoke test
+        run: |
+          curl -fsS http://localhost:3000/api/health
+          curl -fsS http://localhost:3000/api/menu | grep -q '"products"'
+          curl -fsS http://localhost:3000/ | grep -qi '<div id="root">'
+          curl -fsS http://localhost:3000/admin/ | grep -qi '<div id="root">'
+          # o simulador de pagamento não pode existir em produção
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/dev/pix/qualquer/pay)" = "404"
+          # cabeçalhos de segurança do helmet
+          curl -sI http://localhost:3000/ | grep -qi 'x-content-type-options: nosniff'
+      - name: Logs do container (se falhar)
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml logs --no-color

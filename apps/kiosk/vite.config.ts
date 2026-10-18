@@ -24,7 +24,8 @@ export default defineConfig({
       workbox: {
         // Guarda o app shell; as chamadas /api e o socket nunca vão para o cache do SW
         // (o cardápio offline é uma cópia local controlada pelo app, ver lib/offline.ts).
-        navigateFallbackDenylist: [/^\/api/, /^\/socket\.io/],
+        // /admin é outro app servido pela mesma origem: o service worker do totem não pode respondê-lo.
+        navigateFallbackDenylist: [/^\/api/, /^\/socket\.io/, /^\/admin/],
         globPatterns: ['**/*.{js,css,html,svg,png}'],
       },
     }),

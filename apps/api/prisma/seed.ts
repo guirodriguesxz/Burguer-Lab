@@ -42,11 +42,29 @@ const coupons = [
   { code: 'ULTIMO', type: 'PERCENT' as const, value: 50, maxUses: 1 },
 ]
 
-// Credenciais apenas para desenvolvimento local.
-const users = [
-  { email: 'admin@burgerlab.dev', name: 'Admin', password: 'admin123', role: 'ADMIN' as const },
-  { email: 'cozinha@burgerlab.dev', name: 'Cozinha', password: 'cozinha123', role: 'KITCHEN' as const },
-]
+// Em produção nunca cria as contas de demonstração: exige ADMIN_EMAIL/ADMIN_PASSWORD (e KITCHEN_* opcionais).
+// Fora de produção usa credenciais de desenvolvimento local.
+const isProd = process.env.NODE_ENV === 'production'
+
+function buildUsers() {
+  if (!isProd) {
+    return [
+      { email: 'admin@burgerlab.dev', name: 'Admin', password: 'admin123', role: 'ADMIN' as const },
+      { email: 'cozinha@burgerlab.dev', name: 'Cozinha', password: 'cozinha123', role: 'KITCHEN' as const },
+    ]
+  }
+  const { ADMIN_EMAIL, ADMIN_PASSWORD, KITCHEN_EMAIL, KITCHEN_PASSWORD } = process.env
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) throw new Error('Defina ADMIN_EMAIL e ADMIN_PASSWORD para o seed de produção')
+  if (ADMIN_PASSWORD.length < 12) throw new Error('ADMIN_PASSWORD deve ter ao menos 12 caracteres')
+  const list: { email: string; name: string; password: string; role: 'ADMIN' | 'KITCHEN' }[] = [
+    { email: ADMIN_EMAIL, name: 'Admin', password: ADMIN_PASSWORD, role: 'ADMIN' },
+  ]
+  if (KITCHEN_EMAIL && KITCHEN_PASSWORD) {
+    list.push({ email: KITCHEN_EMAIL, name: 'Cozinha', password: KITCHEN_PASSWORD, role: 'KITCHEN' as const })
+  }
+  return list
+}
+const users = buildUsers()
 
 async function main() {
   for (const u of users) {
@@ -57,8 +75,10 @@ async function main() {
       create: { email: u.email, name: u.name, role: u.role, passwordHash },
     })
   }
-  for (const c of coupons) {
-    await prisma.coupon.upsert({ where: { code: c.code }, update: {}, create: c })
+  if (!isProd) {
+    for (const c of coupons) {
+      await prisma.coupon.upsert({ where: { code: c.code }, update: {}, create: c })
+    }
   }
   for (const c of categories) {
     await prisma.category.upsert({ where: { id: c.id }, update: c, create: c })

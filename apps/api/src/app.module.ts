@@ -8,6 +8,7 @@ import { RealtimeModule } from './realtime/realtime.module'
 import { AdminModule } from './admin/admin.module'
 import { PaymentsModule } from './payments/payments.module'
 import { CouponsModule } from './coupons/coupons.module'
+import { HealthController } from './health/health.controller'
 
 @Module({
   imports: [
@@ -21,5 +22,6 @@ import { CouponsModule } from './coupons/coupons.module'
     CouponsModule,
     AdminModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

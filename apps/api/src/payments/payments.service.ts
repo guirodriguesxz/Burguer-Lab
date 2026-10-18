@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { z } from 'zod'
+import { requireSecret } from '../config'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { signPayload, verifySignature } from './signature'
@@ -20,7 +21,7 @@ const webhookSchema = z.object({
 })
 
 const orderInclude = { items: true, payment: true } as const
-const secret = () => process.env.PIX_WEBHOOK_SECRET ?? 'dev-webhook-secret'
+const secret = () => requireSecret('PIX_WEBHOOK_SECRET', 'dev-webhook-secret')
 
 @Injectable()
 export class PaymentsService implements OnModuleInit, OnModuleDestroy {

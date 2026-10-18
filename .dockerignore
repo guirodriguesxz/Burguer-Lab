@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/dist-seed
+apps/api/public
+**/.pgdata
+.git
+.github
+.claude
+e2e/test-results
+e2e/playwright-report
+*.log
+.env
+**/.env

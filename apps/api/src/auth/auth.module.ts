@@ -1,5 +1,7 @@
 import { Global, Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
+import { ThrottlerModule } from '@nestjs/throttler'
+import { requireSecret } from '../config'
 import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
@@ -7,9 +9,11 @@ import { AuthService } from './auth.service'
 @Global()
 @Module({
   imports: [
+    // Limite por IP; o login aplica um limite próprio mais estrito (ver AuthController).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 120) }]),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET ?? 'dev-only-secret-change-me',
+      secret: requireSecret('JWT_SECRET', 'dev-only-secret-change-me'),
       signOptions: { expiresIn: '8h' },
     }),
   ],

@@ -1,11 +1,20 @@
 {
   "name": "burger-lab",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "e2e"
+  ],
   "scripts": {
     "db:up": "docker compose up -d db",
     "dev:api": "npm run start:dev -w @burger-lab/api",
     "dev:kiosk": "npm run dev -w @burger-lab/kiosk",
-    "dev:admin": "npm run dev -w @burger-lab/admin"
+    "dev:admin": "npm run dev -w @burger-lab/admin",
+    "build:web": "node scripts/build-web.mjs",
+    "build:api": "npm run build -w @burger-lab/api",
+    "build": "npm run build:web && npm run build:api",
+    "test": "npm test -w @burger-lab/api && npm run test:int -w @burger-lab/api",
+    "test:e2e": "npm test -w @burger-lab/e2e"
   }
 }

@@ -1,34 +1,60 @@
 # Burger Lab: sistema de autoatendimento
 
-Monorepo full-stack de um totem de autoatendimento para lanchonete, com API, banco relacional e painel de cozinha.
+Sistema completo de **totem de autoatendimento para lanchonete**: o cliente pede e paga sozinho (cartão ou Pix), a cozinha recebe o pedido ao vivo, e a gerência controla cardápio, estoque, cupons e relatórios. Foi construído como projeto de portfólio com preocupações de produção: consistência de dados, segurança, funcionamento offline, testes em três camadas, CI e deploy em um único container.
 
-## Arquitetura
+```mermaid
+flowchart LR
+  subgraph Cliente
+    K[Totem PWA<br/>React + TS]
+  end
+  subgraph Equipe
+    A[App da equipe<br/>cozinha ao vivo · cardápio · cupons · relatórios]
+  end
+  K -- REST + Socket.IO --> API
+  A -- REST + Socket.IO + JWT --> API
+  PSP[Provedor Pix] -- webhook assinado --> API
+  API[API NestJS] --> DB[(PostgreSQL)]
+```
 
 | Pacote | Descrição |
 | --- | --- |
-| `apps/kiosk` | Totem do cliente (React + TypeScript + Vite), porta 5173 |
-| `apps/admin` | App da equipe: login, cozinha ao vivo (KDS), cardápio/estoque e relatórios, porta 5174 |
-| `apps/api` | API REST + WebSocket (NestJS + Prisma + PostgreSQL), porta 3000 |
+| `apps/kiosk` | Totem do cliente (React + TypeScript + Vite), instalável como PWA e com modo offline |
+| `apps/admin` | App da equipe: login, cozinha ao vivo (KDS), cardápio/estoque, cupons e relatórios |
+| `apps/api` | API REST + WebSocket (NestJS, Prisma, PostgreSQL); em produção também serve os dois front-ends |
+| `e2e` | Testes ponta a ponta (Playwright) contra o artefato de produção |
 
-Usuários de desenvolvimento (criados pelo seed): `admin@burgerlab.dev` / `admin123` e `cozinha@burgerlab.dev` / `cozinha123`.
+## Funcionalidades
 
-### Decisões de projeto
+- **Totem**: comer aqui/levar, cardápio por categoria, personalização (remover ingredientes, adicionais), carrinho, **upsell** orientado por vendas, **cupom**, pagamento por **cartão** ou **Pix (QR Code)**, senha do pedido, timeout de inatividade, interface própria para toque (alvos grandes, foco visível, `aria-label`).
+- **Cozinha ao vivo**: pedidos novos e mudanças de status chegam por WebSocket, sem recarregar.
+- **Gestão**: pausar produto, ajustar preço e estoque (refletem no totem na hora), cupons (percentual/fixo, mínimo, limite de usos, validade) e relatórios (faturamento, ticket médio, pedidos por hora, mais vendidos).
+- **Offline**: o totem abre sem internet, usa a última cópia do cardápio e aceita pedidos no cartão numa fila local que sincroniza ao reconectar.
 
-- **Preço sempre calculado no servidor**: o cliente envia só IDs e quantidades; valores em centavos (inteiros).
-- **Máquina de estados do pedido** (`PAID → PREPARING → READY → DELIVERED`, com cancelamento nas etapas iniciais), com transições inválidas rejeitadas (409) e histórico em `OrderEvent`.
-- **Estoque transacional**: baixa condicional na mesma transação do pedido, evitando venda de item esgotado em pedidos concorrentes.
-- **Idempotência**: cabeçalho `Idempotency-Key` impede pedido duplicado em retentativas.
-- **Validação de entrada** com Zod.
-- **Tempo real (Socket.IO)**: pedidos novos e mudanças de status chegam à cozinha sem polling; o handshake autentica o JWT e só staff entra na sala `staff`. Ao reconectar, a cozinha ressincroniza via REST. O totem recebe `menu:changed` e atualiza estoque/preço/pausa na hora.
-- **Autenticação e RBAC**: JWT (8h) + guard com papéis `ADMIN` e `KITCHEN`; senhas com bcrypt; mensagem de login única para não revelar e-mails existentes.
-- **Relatórios em SQL**: faturamento, ticket médio, pedidos por hora e mais vendidos, com fuso `America/Sao_Paulo`.
-- **Pix com webhook** (provedor simulado atrás de uma interface `PixProvider`, trocável por um PSP real): o pedido Pix nasce `CREATED` com cobrança `PENDING` e só chega à cozinha quando o webhook confirma. O webhook valida assinatura HMAC-SHA256 sobre o corpo bruto (comparação em tempo constante), confere o valor e é idempotente. Cobranças não pagas expiram (5 min), cancelam o pedido e devolvem estoque e uso de cupom; webhook tardio em cobrança expirada é recusado (409). Em dev, `POST /api/dev/pix/:txid/pay` faz o papel do banco.
-- **Cupons**: regras puras e testadas (`coupon-rules.ts`); a prévia no totem não consome o cupom, e o uso é reservado de forma atômica (`UPDATE ... WHERE usedCount < maxUses`) ao criar o pedido, então dois pedidos simultâneos não passam do limite.
-- **Upsell orientado por dados**: para cada categoria complementar que falta no carrinho (bebida, acompanhamento, sobremesa), sugere o item disponível mais vendido nos últimos 30 dias.
-- **Offline (PWA)**: service worker guarda o app shell; o cardápio tem cópia local; sem internet o Pix e o cupom ficam indisponíveis e pedidos no cartão entram numa fila local com `Idempotency-Key` e código curto (`clientRef`, exibido ao cliente e no cartão da cozinha). Ao voltar a conexão a fila sincroniza sem duplicar; recusas do servidor (ex.: estoque esgotado) saem da fila e ficam registradas. Limitação conhecida: vendas offline podem esgotar estoque que o totem ainda não sabia.
-- **UX de totem**: alvos grandes, timeout de inatividade, itens esgotados desabilitados.
+## Decisões de projeto
 
-## Rodando
+**Consistência de dados**
+- **Preço sempre calculado no servidor**: o cliente envia só IDs e quantidades; valores são inteiros em centavos.
+- **Estoque transacional**: baixa condicional (`UPDATE ... WHERE stock >= qty`) na mesma transação do pedido; disputa pela última unidade tem um só vencedor, e o perdedor não deixa rastros (rollback).
+- **Máquina de estados do pedido** (`PAID → PREPARING → READY → DELIVERED`, com cancelamento nas etapas iniciais), transições inválidas recusadas (409) e histórico em `OrderEvent`.
+- **Idempotência**: cabeçalho `Idempotency-Key` impede pedido duplicado em retentativas (rede instável, fila offline).
+
+**Pagamentos**
+- **Pix com webhook**: o pedido nasce `CREATED` com cobrança `PENDING` e só chega à cozinha quando o webhook confirma. O webhook valida assinatura **HMAC-SHA256 sobre o corpo bruto** (comparação em tempo constante), confere o valor e é **idempotente**. O provedor é uma interface (`PixProvider`) com implementação simulada, trocável por um PSP real sem mexer no restante.
+- **Expiração**: cobranças não pagas expiram (5 min), cancelam o pedido e devolvem estoque e uso de cupom; webhook tardio em cobrança expirada é recusado (409).
+- **Cupons**: regras puras e testadas; a prévia no totem não consome o cupom, e o uso é reservado de forma **atômica** (`UPDATE ... WHERE usedCount < maxUses`), então pedidos simultâneos não passam do limite.
+
+**Tempo real e offline**
+- **Socket.IO** com handshake autenticado por JWT: só equipe entra na sala `staff`; o totem recebe `menu:changed`. Ao reconectar, a cozinha ressincroniza via REST.
+- **PWA**: service worker guarda o app shell; cardápio com cópia local; Pix e cupom ficam indisponíveis sem rede; pedidos no cartão entram na fila com `Idempotency-Key` e um código curto (`clientRef`) mostrado ao cliente e na cozinha. Limitação conhecida: vendas offline podem esgotar um estoque que o totem ainda não sabia.
+
+**Segurança**
+- JWT (8h) + RBAC (`ADMIN`, `KITCHEN`), senhas com bcrypt, mensagem de login única (não revela e-mails existentes), **rate limit no login**, `helmet` (CSP, HSTS, etc.), validação de entrada com Zod.
+- Em produção a API **recusa iniciar sem `JWT_SECRET`/`PIX_WEBHOOK_SECRET`**, o seed não cria contas de demonstração (exige `ADMIN_EMAIL`/`ADMIN_PASSWORD` de 12+ caracteres) e o simulador de pagamento não existe.
+- Container roda como usuário não-root.
+
+**Relatórios**: agregações em SQL no fuso `America/Sao_Paulo` (há teste de regressão para conversão de fuso).
+
+## Rodando em desenvolvimento
 
 ```bash
 npm install
@@ -38,23 +64,59 @@ npm run db:up                           # Docker (docker-compose.yml)
 npm run db:local -w @burger-lab/api     # Postgres embutido, sem Docker
 
 # 2. Migração e seed (uma vez)
-cd apps/api && npx prisma migrate dev && npx prisma db seed
+cd apps/api && npx prisma migrate dev && npx prisma db seed && cd ../..
 
-# 3. API, totem e app da equipe (em terminais separados)
+# 3. Em terminais separados
 npm run dev:api     # http://localhost:3000/api
 npm run dev:kiosk   # http://localhost:5173
 npm run dev:admin   # http://localhost:5174
 ```
 
-Testes da API: `npm test -w @burger-lab/api`.
+Usuários de desenvolvimento (seed): `admin@burgerlab.dev` / `admin123` e `cozinha@burgerlab.dev` / `cozinha123`. Cupons de exemplo: `BEMVINDO10`, `LANCHE5` (mínimo R$ 30), `ULTIMO` (1 uso). Em dev, o totem mostra um botão para simular o banco confirmando o Pix.
 
-Variáveis opcionais da API: `JWT_SECRET`, `PIX_WEBHOOK_SECRET`, `PIX_TTL_SECONDS` (padrão 300). Cupons de exemplo do seed: `BEMVINDO10`, `LANCHE5` (mínimo R$ 30), `ULTIMO` (1 uso).
+## Testes
 
-PWA: `npm run build -w @burger-lab/kiosk && npm run preview -w @burger-lab/kiosk` (o service worker só é ativo no build).
+| Camada | Comando | O que cobre |
+| --- | --- | --- |
+| Unitários | `npm test -w @burger-lab/api` | máquina de estados, regras de cupom, assinatura de webhook |
+| Integração | `npm run test:int -w @burger-lab/api` | API inteira contra Postgres real: preço/estoque/rollback, corrida pela última unidade, idempotência, Pix + webhook + expiração, cupons concorrentes, RBAC, rate limit, relatórios |
+| E2E | `npm run build && npm run test:e2e` | Chrome real contra o artefato de produção: pedido com cupom e cozinha ao vivo, Pix com webhook assinado, **PWA offline com sincronização**, RBAC e cardápio em tempo real |
+
+`npm test` roda unitários + integração. Os testes de integração usam o banco `burgerlab_test` e o E2E recria `burgerlab_e2e` a cada execução (precisam do Postgres de desenvolvimento no ar). O E2E usa o Google Chrome instalado (`channel: 'chrome'`), sem baixar navegadores.
+
+## Build, Docker e deploy
+
+`npm run build` compila totem e admin, copia para `apps/api/public` e compila a API. Em produção **um único container** serve tudo: totem em `/`, equipe em `/admin/`, API em `/api`.
+
+```bash
+cp .env.prod.example .env      # preencha os segredos (openssl rand -hex 32)
+docker compose -f docker-compose.prod.yml up -d --build
+# http://localhost:3000        (totem)
+# http://localhost:3000/admin/ (equipe)
+```
+
+A imagem aplica as migrações ao iniciar e, com `SEED_ON_BOOT=true`, faz o seed idempotente (cardápio + usuário admin). Há `GET /api/health` (checa o banco) usado no healthcheck.
+
+**Render**: o `render.yaml` é um Blueprint (serviço Docker + Postgres gerenciado). *New → Blueprint*, aponte para o repositório e informe `ADMIN_EMAIL` e `ADMIN_PASSWORD`; `JWT_SECRET` e `PIX_WEBHOOK_SECRET` são gerados automaticamente.
+
+**CI** (`.github/workflows/ci.yml`): typecheck, unitários e integração com Postgres de serviço; E2E com Playwright; e um job que sobe o `docker-compose.prod.yml` e faz smoke test (health, front-ends, simulador desligado, cabeçalhos de segurança).
+
+## Variáveis de ambiente
+
+| Variável | Uso |
+| --- | --- |
+| `DATABASE_URL` | conexão PostgreSQL |
+| `JWT_SECRET`, `PIX_WEBHOOK_SECRET` | segredos (obrigatórios em produção) |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `KITCHEN_EMAIL`, `KITCHEN_PASSWORD` | contas criadas pelo seed de produção |
+| `SEED_ON_BOOT` | `true` para rodar o seed ao iniciar o container |
+| `PIX_TTL_SECONDS` | validade da cobrança Pix (padrão 300) |
+| `LOGIN_RATE_LIMIT`, `RATE_LIMIT` | tentativas de login/min e requisições/min por IP |
+| `CORS_ORIGIN` | origens permitidas, separadas por vírgula (padrão: qualquer) |
 
 ## Roadmap
 
 - [x] Fase 1: API, banco, estoque, máquina de estados, totem integrado
-- [x] Fase 2: WebSocket (cozinha em tempo real), painel admin com login/RBAC, relatórios
-- [x] Fase 3: Pix em modo teste com webhook, modo offline (PWA), cupons e upsell
-- [ ] Fase 4: testes de integração/E2E, CI, Docker da aplicação e deploy
+- [x] Fase 2: WebSocket, painel da equipe com login/RBAC, relatórios
+- [x] Fase 3: Pix com webhook, cupons, upsell, PWA offline
+- [x] Fase 4: testes de integração e E2E, CI, Docker e config de deploy
+- [ ] Próximos: integração com um PSP Pix real (Mercado Pago/Stripe em modo teste), impressão de senha/comanda, tela de senhas chamadas, observabilidade (logs estruturados, métricas)
