@@ -26,6 +26,20 @@ enum PayMethod {
   CARD
 }
 
+enum Role {
+  ADMIN
+  KITCHEN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+}
+
 model Category {
   id       String    @id
   label    String

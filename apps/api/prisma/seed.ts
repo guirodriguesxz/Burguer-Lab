@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import * as bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -35,7 +36,21 @@ const products = [
   { id: 'brownie', name: 'Brownie', description: 'Brownie quente com sorvete.', priceCents: 1590, categoryId: 'desserts', emoji: '🍫', stock: 3, removable: [] },
 ]
 
+// Credenciais apenas para desenvolvimento local.
+const users = [
+  { email: 'admin@burgerlab.dev', name: 'Admin', password: 'admin123', role: 'ADMIN' as const },
+  { email: 'cozinha@burgerlab.dev', name: 'Cozinha', password: 'cozinha123', role: 'KITCHEN' as const },
+]
+
 async function main() {
+  for (const u of users) {
+    const passwordHash = await bcrypt.hash(u.password, 10)
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, role: u.role, passwordHash },
+      create: { email: u.email, name: u.name, role: u.role, passwordHash },
+    })
+  }
   for (const c of categories) {
     await prisma.category.upsert({ where: { id: c.id }, update: c, create: c })
   }

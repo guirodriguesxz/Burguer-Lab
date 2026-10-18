@@ -1,5 +1,7 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { OrderStatus } from '@prisma/client'
+import { AuthGuard } from '../auth/auth.guard'
+import { Roles } from '../auth/roles.decorator'
 import { createOrderSchema, updateStatusSchema } from './orders.dto'
 import { OrdersService } from './orders.service'
 
@@ -15,12 +17,16 @@ export class OrdersController {
   }
 
   @Get()
+  @UseGuards(AuthGuard)
+  @Roles('KITCHEN', 'ADMIN')
   list(@Query('status') status?: string) {
     const list = status ? (status.split(',') as OrderStatus[]) : undefined
     return this.orders.list(list)
   }
 
   @Patch(':id/status')
+  @UseGuards(AuthGuard)
+  @Roles('KITCHEN', 'ADMIN')
   updateStatus(@Param('id') id: string, @Body() body: unknown) {
     const parsed = updateStatusSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())

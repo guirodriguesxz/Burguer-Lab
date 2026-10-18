@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import type { CartItem, Category, Mode, Order, Product } from '../lib/types'
+import { io } from 'socket.io-client'
 import { fetchMenu } from '../lib/api'
 import Welcome from './Welcome'
 import Menu from './Menu'
@@ -61,15 +62,22 @@ export default function Kiosk() {
     }
   }, [screen, reset])
 
-  // Recarrega o cardápio ao entrar na tela de menu, para refletir estoque e disponibilidade atuais.
+  // Recarrega o cardápio ao entrar na tela de menu e sempre que o servidor avisar (estoque, preço, pausa).
   useEffect(() => {
     if (screen !== 'menu') return
-    fetchMenu()
-      .then((m) => {
-        setMenu(m)
-        setMenuError(false)
-      })
-      .catch(() => setMenuError(true))
+    const load = () =>
+      fetchMenu()
+        .then((m) => {
+          setMenu(m)
+          setMenuError(false)
+        })
+        .catch(() => setMenuError(true))
+    load()
+    const socket = io()
+    socket.on('menu:changed', load)
+    return () => {
+      socket.close()
+    }
   }, [screen])
 
   const addProduct = (p: Product) => {

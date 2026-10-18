@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { OrderStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { CreateOrderDto } from './orders.dto'
 import { canTransition } from './order-state'
 
@@ -8,7 +9,10 @@ const include = { items: true, payment: true } as const
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+  ) {}
 
   /**
    * Cria o pedido já pago (pagamento simulado). Preços são sempre calculados no servidor
@@ -23,7 +27,7 @@ export class OrdersService {
       if (existing) return existing.order
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const order = await this.prisma.$transaction(async (tx) => {
       const ids = [...new Set(dto.items.map((i) => i.productId))]
       const products = await tx.product.findMany({ where: { id: { in: ids } }, include: { extras: true } })
       const byId = new Map(products.map((p) => [p.id, p]))
@@ -68,6 +72,11 @@ export class OrdersService {
         include,
       })
     })
+
+    // Notifica depois do commit: a cozinha vê o pedido e o totem recarrega o estoque.
+    this.realtime.orderCreated(order)
+    this.realtime.menuChanged()
+    return order
   }
 
   list(status?: OrderStatus[]) {
@@ -84,10 +93,12 @@ export class OrdersService {
     if (!canTransition(order.status, to)) {
       throw new ConflictException(`Transição inválida: ${order.status} → ${to}`)
     }
-    return this.prisma.order.update({
+    const updated = await this.prisma.order.update({
       where: { id },
       data: { status: to, history: { create: { from: order.status, to } } },
       include,
     })
+    this.realtime.orderUpdated(updated)
+    return updated
   }
 }

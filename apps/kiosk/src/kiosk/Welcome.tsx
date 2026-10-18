@@ -15,7 +15,6 @@ export default function Welcome({ onStart }: { onStart: (m: Mode) => void }) {
           <span>🛍️</span> Levar
         </button>
       </div>
-      <a className="kitchen-link" href="#/cozinha">Painel da cozinha →</a>
     </main>
   )
 }

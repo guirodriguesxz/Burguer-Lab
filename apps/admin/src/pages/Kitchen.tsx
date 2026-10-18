@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchOrders, updateOrderStatus } from '../lib/api'
-import { brl } from '../lib/format'
-import type { Order, OrderStatus } from '../lib/types'
+import { useCallback, useState } from 'react'
+import { brl, fetchOrders, updateOrderStatus, type Order, type OrderStatus } from '../lib/api'
+import { useStaffSocket } from '../lib/useStaffSocket'
 
 interface ColumnProps {
   title: string
   orders: Order[]
-  action?: { label: string; next: OrderStatus }
+  action: { label: string; next: OrderStatus }
   onAction: (id: string, next: OrderStatus) => void
 }
 
@@ -14,7 +13,7 @@ function Column({ title, orders, action, onAction }: ColumnProps) {
   return (
     <section className="kcol">
       <h2>
-        {title} <span>{orders.length}</span>
+        {title} <span className="badge">{orders.length}</span>
       </h2>
       {orders.map((o) => (
         <article key={o.id} className="kcard">
@@ -39,7 +38,7 @@ function Column({ title, orders, action, onAction }: ColumnProps) {
             <span>
               {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {brl(o.totalCents)}
             </span>
-            {action && <button onClick={() => onAction(o.id, action.next)}>{action.label}</button>}
+            <button onClick={() => onAction(o.id, action.next)}>{action.label}</button>
           </footer>
         </article>
       ))}
@@ -47,46 +46,45 @@ function Column({ title, orders, action, onAction }: ColumnProps) {
   )
 }
 
-export default function Kitchen() {
+export default function Kitchen({ token }: { token: string }) {
   const [orders, setOrders] = useState<Order[]>([])
-  const [offline, setOffline] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    try {
-      setOrders(await fetchOrders(['PAID', 'PREPARING', 'READY', 'DELIVERED']))
-      setOffline(false)
-    } catch {
-      setOffline(true)
-    }
+  const upsert = useCallback((o: Order) => {
+    setOrders((prev) => (prev.some((p) => p.id === o.id) ? prev.map((p) => (p.id === o.id ? o : p)) : [...prev, o]))
   }, [])
 
-  // Polling simples; na próxima fase troca por WebSocket.
-  useEffect(() => {
-    load()
-    const t = setInterval(load, 2000)
-    return () => clearInterval(t)
-  }, [load])
+  const online = useStaffSocket(token, {
+    onCreated: upsert,
+    onUpdated: upsert,
+    onConnect: () => {
+      fetchOrders(token).then(setOrders).catch(() => undefined)
+    },
+  })
 
   const move = async (id: string, next: OrderStatus) => {
-    await updateOrderStatus(id, next).catch(() => undefined)
-    load()
+    setError(null)
+    try {
+      upsert(await updateOrderStatus(token, id, next))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao atualizar o pedido')
+    }
   }
 
-  const by = (...s: OrderStatus[]) => orders.filter((o) => s.includes(o.status))
+  const by = (s: OrderStatus) => orders.filter((o) => o.status === s)
 
   return (
-    <div className="kitchen">
-      <header className="khead">
-        <h1>🍳 Cozinha {offline && <small>(sem conexão)</small>}</h1>
-        <div>
-          <a href="#/">← Totem</a>
-        </div>
-      </header>
+    <>
+      <div className="toolbar">
+        <h1>Cozinha</h1>
+        <span className={online ? 'live on' : 'live'}>{online ? '● Ao vivo' : '○ Reconectando…'}</span>
+      </div>
+      {error && <p role="alert" className="error">{error}</p>}
       <div className="kgrid">
         <Column title="Novos" orders={by('PAID')} action={{ label: 'Preparar', next: 'PREPARING' }} onAction={move} />
         <Column title="Preparando" orders={by('PREPARING')} action={{ label: 'Pronto ✓', next: 'READY' }} onAction={move} />
         <Column title="Prontos" orders={by('READY')} action={{ label: 'Entregue', next: 'DELIVERED' }} onAction={move} />
       </div>
-    </div>
+    </>
   )
 }
