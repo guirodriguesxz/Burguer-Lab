@@ -26,6 +26,20 @@ button:focus-visible, a:focus-visible { outline: 4px solid var(--accent); outlin
 .btn-primary { background: var(--brand); color: #fff; }
 .btn-primary:active { background: var(--brand-dark); }
 .btn-primary:disabled { background: #d9cbbd; cursor: not-allowed; }
+.banner { background: var(--accent); color: #000; padding: 10px 16px; font-weight: 700; text-align: center; }
+.coupon { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.coupon input { min-height: 56px; width: 260px; padding: 0 16px; border-radius: 14px; border: 2px solid var(--line); font: inherit; font-size: 1.1rem; text-transform: uppercase; }
+.coupon-ok { font-size: 1.15rem; color: var(--ok); }
+.link { background: none; border: 0; color: var(--muted); text-decoration: underline; font: inherit; cursor: pointer; }
+.btn-ghost.small { min-height: 56px; font-size: 1.05rem; padding: 0 20px; }
+.totals { font-size: 1.4rem; }
+.pay small { font-size: .8rem; font-weight: 500; color: var(--muted); }
+.pay:disabled { opacity: .5; cursor: not-allowed; }
+.qr-img { width: 260px; height: 260px; border-radius: 12px; background: #fff; padding: 8px; border: 2px solid var(--line); }
+.upsell-list { display: flex; flex-direction: column; gap: 12px; }
+.upsell-item { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 12px; border: 2px solid var(--line); border-radius: 16px; }
+.upsell-item div { display: flex; flex-direction: column; }
+.ticket strong.code { font-size: 4.5rem; letter-spacing: 6px; }
 .error { color: var(--brand-dark); font-weight: 700; font-size: 1.2rem; }
 .product:disabled { opacity: .45; cursor: not-allowed; }
 .btn-ghost { background: transparent; color: var(--muted); border: 2px solid var(--line); }

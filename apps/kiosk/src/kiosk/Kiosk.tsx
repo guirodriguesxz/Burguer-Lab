@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useReducer, useState } from 'react'
-import type { CartItem, Category, Mode, Order, Product } from '../lib/types'
 import { io } from 'socket.io-client'
-import { fetchMenu } from '../lib/api'
+import { fetchUpsell } from '../lib/api'
+import { loadMenu, useConnectivity } from '../lib/offline'
+import type { CartItem, Category, Mode, Product, UpsellSuggestion } from '../lib/types'
 import Welcome from './Welcome'
 import Menu from './Menu'
 import Customize from './Customize'
-import Checkout from './Checkout'
+import Checkout, { type Ticket } from './Checkout'
 import Done from './Done'
+import Upsell from './Upsell'
 
 type Screen = 'welcome' | 'menu' | 'checkout' | 'done'
 
@@ -29,30 +31,38 @@ function cartReducer(state: CartItem[], a: Action): CartItem[] {
 }
 
 const IDLE_MS = 60_000
+// Na tela de pagamento o cliente pode estar aguardando o Pix (expira em 5 min).
+const IDLE_CHECKOUT_MS = 6 * 60_000
 
 export default function Kiosk() {
+  const { online, queued } = useConnectivity()
   const [screen, setScreen] = useState<Screen>('welcome')
   const [mode, setMode] = useState<Mode>('DINE_IN')
-  const [menu, setMenu] = useState<{ categories: Category[]; products: Product[] } | null>(null)
+  const [menu, setMenu] = useState<{ categories: Category[]; products: Product[]; stale: boolean } | null>(null)
   const [menuError, setMenuError] = useState(false)
   const [cart, dispatch] = useReducer(cartReducer, [])
   const [editing, setEditing] = useState<Product | null>(null)
-  const [order, setOrder] = useState<Order | null>(null)
+  const [ticket, setTicket] = useState<Ticket | null>(null)
+  const [upsell, setUpsell] = useState<UpsellSuggestion[] | null>(null)
+  const [upsellSeen, setUpsellSeen] = useState(false)
 
   const reset = useCallback(() => {
     dispatch({ type: 'clear' })
     setEditing(null)
-    setOrder(null)
+    setTicket(null)
+    setUpsell(null)
+    setUpsellSeen(false)
     setScreen('welcome')
   }, [])
 
   // Volta ao início após inatividade (a tela de pedido concluído tem timer próprio).
   useEffect(() => {
     if (screen === 'welcome' || screen === 'done') return
-    let t = setTimeout(reset, IDLE_MS)
+    const ms = screen === 'checkout' ? IDLE_CHECKOUT_MS : IDLE_MS
+    let t = setTimeout(reset, ms)
     const bump = () => {
       clearTimeout(t)
-      t = setTimeout(reset, IDLE_MS)
+      t = setTimeout(reset, ms)
     }
     const events = ['pointerdown', 'keydown']
     events.forEach((e) => window.addEventListener(e, bump))
@@ -63,10 +73,11 @@ export default function Kiosk() {
   }, [screen, reset])
 
   // Recarrega o cardápio ao entrar na tela de menu e sempre que o servidor avisar (estoque, preço, pausa).
+  // Sem rede, usa a última cópia local.
   useEffect(() => {
     if (screen !== 'menu') return
     const load = () =>
-      fetchMenu()
+      loadMenu()
         .then((m) => {
           setMenu(m)
           setMenuError(false)
@@ -85,8 +96,26 @@ export default function Kiosk() {
     else dispatch({ type: 'add', item: { uid: crypto.randomUUID(), product: p, qty: 1, extras: [], removed: [] } })
   }
 
+  const goCheckout = async () => {
+    if (!online || upsellSeen) return setScreen('checkout')
+    setUpsellSeen(true)
+    try {
+      const suggestions = await fetchUpsell(cart.map((i) => i.product.id))
+      if (suggestions.length > 0) return setUpsell(suggestions)
+    } catch {
+      // sugestão é opcional: se falhar, segue para o pagamento
+    }
+    setScreen('checkout')
+  }
+
   return (
     <div className="kiosk">
+      {(!online || queued > 0) && (
+        <div className="banner" role="status">
+          {!online ? '⚠️ Sem conexão: usando o último cardápio. Pedidos no cartão são enviados quando a internet voltar.' : ''}
+          {queued > 0 && ` ${queued} pedido(s) aguardando envio.`}
+        </div>
+      )}
       {screen === 'welcome' && (
         <Welcome
           onStart={(m) => {
@@ -116,21 +145,22 @@ export default function Kiosk() {
           onAdd={addProduct}
           onQty={(uid, delta) => dispatch({ type: 'qty', uid, delta })}
           onCancel={reset}
-          onCheckout={() => setScreen('checkout')}
+          onCheckout={goCheckout}
         />
       )}
       {screen === 'checkout' && (
         <Checkout
           cart={cart}
           mode={mode}
+          online={online}
           onBack={() => setScreen('menu')}
-          onPaid={(o) => {
-            setOrder(o)
+          onPaid={(t) => {
+            setTicket(t)
             setScreen('done')
           }}
         />
       )}
-      {screen === 'done' && order && <Done order={order} onFinish={reset} />}
+      {screen === 'done' && ticket && <Done ticket={ticket} onFinish={reset} />}
       {editing && (
         <Customize
           product={editing}
@@ -138,6 +168,19 @@ export default function Kiosk() {
           onConfirm={(item) => {
             dispatch({ type: 'add', item })
             setEditing(null)
+          }}
+        />
+      )}
+      {upsell && (
+        <Upsell
+          suggestions={upsell}
+          onAdd={(id) => {
+            const p = menu?.products.find((x) => x.id === id)
+            if (p) dispatch({ type: 'add', item: { uid: crypto.randomUUID(), product: p, qty: 1, extras: [], removed: [] } })
+          }}
+          onContinue={() => {
+            setUpsell(null)
+            setScreen('checkout')
           }}
         />
       )}

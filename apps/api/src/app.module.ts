@@ -6,6 +6,8 @@ import { OrdersModule } from './orders/orders.module'
 import { AuthModule } from './auth/auth.module'
 import { RealtimeModule } from './realtime/realtime.module'
 import { AdminModule } from './admin/admin.module'
+import { PaymentsModule } from './payments/payments.module'
+import { CouponsModule } from './coupons/coupons.module'
 
 @Module({
   imports: [
@@ -14,7 +16,9 @@ import { AdminModule } from './admin/admin.module'
     AuthModule,
     RealtimeModule,
     MenuModule,
+    PaymentsModule,
     OrdersModule,
+    CouponsModule,
     AdminModule,
   ],
 })

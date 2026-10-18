@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto'
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { OrderStatus } from '@prisma/client'
+import { evaluateCoupon, normalizeCode } from '../coupons/coupon-rules'
+import { PixProvider } from '../payments/pix.provider'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { CreateOrderDto } from './orders.dto'
 import { canTransition } from './order-state'
+import { PricingService } from './pricing.service'
 
 const include = { items: true, payment: true } as const
 
@@ -12,11 +16,14 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
+    private readonly pricing: PricingService,
+    private readonly pix: PixProvider,
   ) {}
 
   /**
-   * Cria o pedido já pago (pagamento simulado). Preços são sempre calculados no servidor
-   * e o estoque é baixado na mesma transação.
+   * Cria o pedido. Preço, desconto e estoque são resolvidos no servidor, na mesma transação.
+   * - Cartão: nasce PAID e vai direto para a cozinha.
+   * - Pix: nasce CREATED com cobrança PENDING; só vai para a cozinha quando o webhook confirmar.
    */
   async create(dto: CreateOrderDto, idempotencyKey?: string) {
     if (idempotencyKey) {
@@ -28,24 +35,7 @@ export class OrdersService {
     }
 
     const order = await this.prisma.$transaction(async (tx) => {
-      const ids = [...new Set(dto.items.map((i) => i.productId))]
-      const products = await tx.product.findMany({ where: { id: { in: ids } }, include: { extras: true } })
-      const byId = new Map(products.map((p) => [p.id, p]))
-
-      let total = 0
-      const items = dto.items.map((i) => {
-        const p = byId.get(i.productId)
-        if (!p) throw new BadRequestException(`Produto inexistente: ${i.productId}`)
-        if (!p.available) throw new ConflictException(`${p.name} está indisponível`)
-        const extras = i.extraIds.map((eid) => {
-          const e = p.extras.find((x) => x.id === eid)
-          if (!e) throw new BadRequestException(`Adicional inválido: ${eid}`)
-          return { id: e.id, name: e.name, priceCents: e.priceCents }
-        })
-        const unit = p.priceCents + extras.reduce((s, e) => s + e.priceCents, 0)
-        total += unit * i.qty
-        return { productId: p.id, productName: p.name, qty: i.qty, unitPriceCents: unit, extras, removed: i.removed }
-      })
+      const { lines, subtotalCents, byId } = await this.pricing.price(dto.items, tx)
 
       // Baixa de estoque condicional: falha se outro pedido esgotou o item no meio do caminho.
       const demand = new Map<string, number>()
@@ -60,21 +50,59 @@ export class OrdersService {
         if (res.count === 0) throw new ConflictException(`Estoque insuficiente de ${p.name}`)
       }
 
+      let discountCents = 0
+      let couponCode: string | undefined
+      if (dto.couponCode) {
+        const coupon = await tx.coupon.findUnique({ where: { code: normalizeCode(dto.couponCode) } })
+        const result = evaluateCoupon(coupon, subtotalCents)
+        if (!result.ok) throw new BadRequestException(result.reason)
+        // Reserva o uso de forma atômica: dois pedidos simultâneos não passam do limite.
+        const claimed = await tx.$executeRaw`
+          UPDATE "Coupon" SET "usedCount" = "usedCount" + 1
+          WHERE id = ${coupon!.id} AND ("maxUses" IS NULL OR "usedCount" < "maxUses")`
+        if (claimed === 0) throw new BadRequestException('Cupom esgotado')
+        discountCents = result.discountCents
+        couponCode = coupon!.code
+      }
+
+      const totalCents = subtotalCents - discountCents
+      const isPix = dto.method === 'PIX'
+
+      let payment
+      if (isPix) {
+        const txid = randomUUID().replace(/-/g, '')
+        const charge = await this.pix.createCharge({ txid, amountCents: totalCents })
+        payment = {
+          method: 'PIX' as const,
+          amountCents: totalCents,
+          status: 'PENDING' as const,
+          txid,
+          pixPayload: charge.payload,
+          expiresAt: charge.expiresAt,
+          idempotencyKey,
+        }
+      } else {
+        payment = { method: 'CARD' as const, amountCents: totalCents, status: 'PAID' as const, paidAt: new Date(), idempotencyKey }
+      }
+
       return tx.order.create({
         data: {
           mode: dto.mode,
-          totalCents: total,
-          status: 'PAID',
-          items: { create: items },
-          payment: { create: { method: dto.method, amountCents: total, idempotencyKey } },
-          history: { create: [{ to: 'CREATED' }, { from: 'CREATED', to: 'PAID' }] },
+          totalCents,
+          discountCents,
+          couponCode,
+          clientRef: dto.clientRef,
+          status: isPix ? 'CREATED' : 'PAID',
+          items: { create: lines },
+          payment: { create: payment },
+          history: { create: isPix ? [{ to: 'CREATED' }] : [{ to: 'CREATED' }, { from: 'CREATED', to: 'PAID' }] },
         },
         include,
       })
     })
 
-    // Notifica depois do commit: a cozinha vê o pedido e o totem recarrega o estoque.
-    this.realtime.orderCreated(order)
+    // Notifica depois do commit.
+    if (order.status === 'PAID') this.realtime.orderCreated(order)
     this.realtime.menuChanged()
     return order
   }
@@ -85,6 +113,19 @@ export class OrdersService {
       include,
       orderBy: { number: 'asc' },
     })
+  }
+
+  /** Consulta pública e mínima, usada pelo totem para aguardar a confirmação do Pix. */
+  async publicStatus(id: string) {
+    const order = await this.prisma.order.findUnique({ where: { id }, include: { payment: true } })
+    if (!order) throw new NotFoundException('Pedido não encontrado')
+    return {
+      id: order.id,
+      number: order.number,
+      status: order.status,
+      paymentStatus: order.payment?.status ?? null,
+      expiresAt: order.payment?.expiresAt ?? null,
+    }
   }
 
   async transition(id: string, to: OrderStatus) {

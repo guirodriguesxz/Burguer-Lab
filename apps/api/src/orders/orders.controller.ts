@@ -16,6 +16,11 @@ export class OrdersController {
     return this.orders.create(parsed.data, key)
   }
 
+  @Get(':id/status')
+  status(@Param('id') id: string) {
+    return this.orders.publicStatus(id)
+  }
+
   @Get()
   @UseGuards(AuthGuard)
   @Roles('KITCHEN', 'ADMIN')

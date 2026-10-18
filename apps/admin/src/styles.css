@@ -62,6 +62,12 @@ tr.off { opacity: .6; }
 .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
 .switch input { width: 20px; height: 20px; }
 
+.ref { display: block; font-size: .7rem; font-weight: 600; color: #f6e7d6; opacity: .8; }
+select { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; background: #fff; font: inherit; }
+.coupon-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+.coupon-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: .85rem; }
+.coupon-form input, .coupon-form select { width: 150px; }
+
 /* Relatórios */
 .seg { display: inline-flex; background: var(--card); border-radius: 12px; padding: 4px; border: 2px solid var(--line); }
 .seg button { background: transparent; padding: 6px 14px; border-radius: 8px; font-weight: 600; }

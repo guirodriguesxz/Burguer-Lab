@@ -12,6 +12,10 @@ export interface Order {
   status: OrderStatus
   mode: 'DINE_IN' | 'TAKEAWAY'
   totalCents: number
+  discountCents: number
+  couponCode: string | null
+  /** Presente em pedidos feitos offline no totem; identifica o pedido no balcão. */
+  clientRef: string | null
   createdAt: string
   items: {
     id: string
@@ -30,6 +34,27 @@ export interface AdminProduct {
   priceCents: number
   available: boolean
   stock: number | null
+}
+
+export interface Coupon {
+  id: string
+  code: string
+  type: 'PERCENT' | 'FIXED'
+  value: number
+  minOrderCents: number
+  maxUses: number | null
+  usedCount: number
+  expiresAt: string | null
+  active: boolean
+}
+
+export interface NewCoupon {
+  code: string
+  type: 'PERCENT' | 'FIXED'
+  value: number
+  minOrderCents: number
+  maxUses: number | null
+  expiresAt: string | null
 }
 
 export interface Summary {
@@ -105,7 +130,15 @@ export const patchProduct = (
   data: Partial<Pick<AdminProduct, 'priceCents' | 'available' | 'stock'>>,
 ) => request<AdminProduct>(`/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token)
 
-export const fetchSummary = (token: string, days: number) =>
+export const fetchCoupons = (token: string) => request<Coupon[]>('/admin/coupons', {}, token)
+
+export const createCoupon = (token: string, data: NewCoupon) =>
+  request<Coupon>('/admin/coupons', { method: 'POST', body: JSON.stringify(data) }, token)
+
+export const patchCoupon = (token: string, id: string, data: Partial<Pick<Coupon, 'active' | 'maxUses'>>) =>
+  request<Coupon>(`/admin/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token)
+
+export const fetchSummary =(token: string, days: number) =>
   request<Summary>(`/admin/reports/summary?days=${days}`, {}, token)
 
 export const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

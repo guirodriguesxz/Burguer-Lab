@@ -18,7 +18,10 @@ function Column({ title, orders, action, onAction }: ColumnProps) {
       {orders.map((o) => (
         <article key={o.id} className="kcard">
           <header>
-            <strong>#{o.number}</strong>
+            <strong>
+              #{o.number}
+              {o.clientRef && <small className="ref">código {o.clientRef}</small>}
+            </strong>
             <span>{o.mode === 'DINE_IN' ? '🍽️ Local' : '🛍️ Viagem'}</span>
           </header>
           <ul>

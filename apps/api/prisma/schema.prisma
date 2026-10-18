@@ -77,6 +77,9 @@ model Order {
   status     OrderStatus @default(CREATED)
   mode       OrderMode
   totalCents Int
+  discountCents Int       @default(0)
+  couponCode String?
+  clientRef  String?     @unique
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   items      OrderItem[]
@@ -104,7 +107,37 @@ model Payment {
   method      PayMethod
   amountCents Int
   idempotencyKey String? @unique
-  paidAt      DateTime  @default(now())
+  status      PaymentStatus @default(PAID)
+  txid        String?   @unique
+  pixPayload  String?
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+model Coupon {
+  id            String     @id @default(uuid())
+  code          String     @unique
+  type          CouponType
+  /// PERCENT: 1-100. FIXED: centavos.
+  value         Int
+  minOrderCents Int        @default(0)
+  maxUses       Int?
+  usedCount     Int        @default(0)
+  expiresAt     DateTime?
+  active        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
 }
 
 model OrderEvent {

@@ -36,6 +36,12 @@ const products = [
   { id: 'brownie', name: 'Brownie', description: 'Brownie quente com sorvete.', priceCents: 1590, categoryId: 'desserts', emoji: '🍫', stock: 3, removable: [] },
 ]
 
+const coupons = [
+  { code: 'BEMVINDO10', type: 'PERCENT' as const, value: 10 },
+  { code: 'LANCHE5', type: 'FIXED' as const, value: 500, minOrderCents: 3000 },
+  { code: 'ULTIMO', type: 'PERCENT' as const, value: 50, maxUses: 1 },
+]
+
 // Credenciais apenas para desenvolvimento local.
 const users = [
   { email: 'admin@burgerlab.dev', name: 'Admin', password: 'admin123', role: 'ADMIN' as const },
@@ -51,11 +57,16 @@ async function main() {
       create: { email: u.email, name: u.name, role: u.role, passwordHash },
     })
   }
+  for (const c of coupons) {
+    await prisma.coupon.upsert({ where: { code: c.code }, update: {}, create: c })
+  }
   for (const c of categories) {
     await prisma.category.upsert({ where: { id: c.id }, update: c, create: c })
   }
   for (const { extras, ...p } of products) {
-    await prisma.product.upsert({ where: { id: p.id }, update: p, create: p })
+    // Em re-execuções não sobrescreve o estoque atual.
+    const { stock: _stock, ...rest } = p
+    await prisma.product.upsert({ where: { id: p.id }, update: rest, create: p })
     if (extras) {
       for (const e of burgerExtras(p.id)) {
         await prisma.extra.upsert({ where: { id: e.id }, update: e, create: { ...e, productId: p.id } })

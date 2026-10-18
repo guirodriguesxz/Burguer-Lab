@@ -51,6 +51,31 @@ export interface Order {
   status: OrderStatus
   mode: Mode
   totalCents: number
+  discountCents: number
+  clientRef: string | null
   createdAt: string
   items: OrderItem[]
+  payment: { status: 'PENDING' | 'PAID' | 'EXPIRED'; txid: string | null; pixPayload: string | null; expiresAt: string | null } | null
+}
+
+export interface CouponPreview {
+  valid: boolean
+  reason?: string
+  code?: string
+  subtotalCents?: number
+  discountCents?: number
+  totalCents?: number
+}
+
+export interface UpsellSuggestion {
+  reason: string
+  product: { id: string; name: string; emoji: string; priceCents: number }
+}
+
+export interface OrderPayload {
+  mode: Mode
+  method: PayMethod
+  couponCode?: string
+  clientRef?: string
+  items: { productId: string; qty: number; extraIds: string[]; removed: string[] }[]
 }

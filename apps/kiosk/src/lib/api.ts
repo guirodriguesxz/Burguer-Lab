@@ -1,4 +1,14 @@
-import type { CartItem, Category, Mode, Order, OrderStatus, PayMethod, Product } from './types'
+import type {
+  CartItem,
+  Category,
+  CouponPreview,
+  Mode,
+  Order,
+  OrderPayload,
+  PayMethod,
+  Product,
+  UpsellSuggestion,
+} from './types'
 
 export class ApiError extends Error {
   status: number
@@ -20,27 +30,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+/** Erro de rede (sem resposta do servidor), diferente de uma recusa do servidor (ApiError). */
+export const isNetworkError = (e: unknown) => !(e instanceof ApiError)
+
 export const fetchMenu = () => request<{ categories: Category[]; products: Product[] }>('/menu')
 
-export const fetchOrders = (status?: OrderStatus[]) =>
-  request<Order[]>(`/orders${status ? `?status=${status.join(',')}` : ''}`)
+export const fetchUpsell = (productIds: string[]) =>
+  request<UpsellSuggestion[]>(`/menu/upsell?productIds=${encodeURIComponent(productIds.join(','))}`)
 
-export const updateOrderStatus = (id: string, status: OrderStatus) =>
-  request<Order>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+export const toItems = (cart: CartItem[]): OrderPayload['items'] =>
+  cart.map((i) => ({ productId: i.product.id, qty: i.qty, extraIds: i.extras.map((e) => e.id), removed: i.removed }))
+
+export const validateCoupon = (code: string, cart: CartItem[]) =>
+  request<CouponPreview>('/coupons/validate', { method: 'POST', body: JSON.stringify({ code, items: toItems(cart) }) })
 
 /** A chave de idempotência evita pedido duplicado se o cliente repetir a requisição. */
-export const createOrder = (cart: CartItem[], mode: Mode, method: PayMethod, idempotencyKey: string) =>
-  request<Order>('/orders', {
-    method: 'POST',
-    headers: { 'Idempotency-Key': idempotencyKey },
-    body: JSON.stringify({
-      mode,
-      method,
-      items: cart.map((i) => ({
-        productId: i.product.id,
-        qty: i.qty,
-        extraIds: i.extras.map((e) => e.id),
-        removed: i.removed,
-      })),
-    }),
-  })
+export const sendOrder = (payload: OrderPayload, idempotencyKey: string) =>
+  request<Order>('/orders', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload) })
+
+export const createOrder = (cart: CartItem[], mode: Mode, method: PayMethod, idempotencyKey: string, couponCode?: string) =>
+  sendOrder({ mode, method, couponCode, items: toItems(cart) }, idempotencyKey)
+
+export const fetchOrderStatus = (id: string) =>
+  request<{ id: string; number: number; status: Order['status']; paymentStatus: 'PENDING' | 'PAID' | 'EXPIRED' | null }>(
+    `/orders/${id}/status`,
+  )
+
+/** Só desenvolvimento: faz o papel do banco/PSP confirmando o Pix via webhook assinado. */
+export const simulatePixPayment = (txid: string) => request<{ ok: boolean }>(`/dev/pix/${txid}/pay`, { method: 'POST' })
