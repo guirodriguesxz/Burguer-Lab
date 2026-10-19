@@ -15,6 +15,8 @@ while true; do
 
   case "$out" in
     *P1001*|*P1002*)
+      # Na primeira falha, mostra a resolução de nomes e o teste de conexão (ajuda a achar a causa).
+      if [ "$attempt" -eq 0 ]; then node /app/net-check.mjs || true; fi
       attempt=$((attempt + 1))
       if [ "$attempt" -ge "$max" ]; then
         echo "Banco inalcançável após $max tentativas. Abortando."

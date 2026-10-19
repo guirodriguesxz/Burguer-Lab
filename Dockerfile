@@ -35,6 +35,7 @@ COPY --from=build /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/public ./apps/api/public
 COPY --chmod=755 scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY scripts/net-check.mjs /app/net-check.mjs
 
 # Prefere IPv4 ao resolver nomes. Várias hospedagens (ex.: Render) não têm saída IPv6, e bancos como o Neon
 # publicam IPv6 e IPv4: sem isso o Prisma pode ficar tentando o IPv6 até estourar o tempo (P1001).
