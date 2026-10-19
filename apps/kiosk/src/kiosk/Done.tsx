@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Ticket } from './Checkout'
+import PrintTicket from './PrintTicket'
 
 export default function Done({ ticket, onFinish }: { ticket: Ticket; onFinish: () => void }) {
   const [left, setLeft] = useState(15)
@@ -11,6 +12,11 @@ export default function Done({ ticket, onFinish }: { ticket: Ticket; onFinish: (
   useEffect(() => {
     if (left <= 0) onFinish()
   }, [left, onFinish])
+
+  // Com impressora térmica e o Chrome em modo quiosque (--kiosk-printing), imprime sozinho ao concluir.
+  useEffect(() => {
+    if (import.meta.env.VITE_AUTO_PRINT === 'true') window.print()
+  }, [])
 
   return (
     <main className="done">
@@ -39,7 +45,9 @@ export default function Done({ ticket, onFinish }: { ticket: Ticket; onFinish: (
           </div>
         </>
       )}
+      <button className="btn-ghost" onClick={() => window.print()}>🖨️ Imprimir senha</button>
       <button className="btn-primary" onClick={onFinish}>Novo pedido ({left}s)</button>
+      <PrintTicket ticket={ticket} />
     </main>
   )
 }

@@ -13,12 +13,22 @@ import { brl, lineTotal } from '../lib/format'
 import { enqueueOrder, newClientRef } from '../lib/offline'
 import type { CartItem, CouponPreview, Mode, Order, PayMethod } from '../lib/types'
 
+/** O que vai no comprovante impresso. */
+export interface PrintInfo {
+  lines: { qty: number; name: string; extras: string[]; removed: string[] }[]
+  totalCents: number
+  method: PayMethod
+  mode: Mode
+  at: number
+}
+
 export interface Ticket {
   number: number | null
   clientRef: string | null
   offline: boolean
   /** Pedido para pagar no caixa: ainda não foi pago nem vai para a cozinha. */
   cash?: boolean
+  print?: PrintInfo
 }
 
 interface Props {
@@ -55,6 +65,18 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
   const total = subtotal - discount
   const couponCode = coupon?.valid ? coupon.code : undefined
 
+  const finish = (method: PayMethod, t: Omit<Ticket, 'print'>) =>
+    onPaid({
+      ...t,
+      print: {
+        lines: cart.map((i) => ({ qty: i.qty, name: i.product.name, extras: i.extras.map((e) => e.name), removed: i.removed })),
+        totalCents: total,
+        method,
+        mode,
+        at: Date.now(),
+      },
+    })
+
   const applyCoupon = async () => {
     setCouponError(null)
     try {
@@ -79,7 +101,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
 
     const queueOffline = () => {
       enqueueOrder(payload, key)
-      onPaid({ number: null, clientRef: clientRef.current, offline: true })
+      finish('CARD', { number: null, clientRef: clientRef.current, offline: true })
     }
 
     if (!online) {
@@ -88,7 +110,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     }
     try {
       const [order] = await Promise.all([createOrder(cart, mode, 'CARD', key, couponCode), wait])
-      onPaid({ number: order.number, clientRef: null, offline: false })
+      finish('CARD', { number: order.ticket, clientRef: null, offline: false })
     } catch (e) {
       if (isNetworkError(e)) return queueOffline()
       setPhase('choose')
@@ -105,12 +127,12 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     const payload = { mode, method: 'CASH' as const, couponCode, clientRef: clientRef.current, items: toItems(cart) }
     const queueOffline = () => {
       enqueueOrder(payload, key)
-      onPaid({ number: null, clientRef: clientRef.current, offline: true, cash: true })
+      finish('CASH', { number: null, clientRef: clientRef.current, offline: true, cash: true })
     }
     if (!online) return queueOffline()
     try {
       const order = await createOrder(cart, mode, 'CASH', key, couponCode)
-      onPaid({ number: order.number, clientRef: null, offline: false, cash: true })
+      finish('CASH', { number: order.ticket, clientRef: null, offline: false, cash: true })
     } catch (e) {
       if (isNetworkError(e)) return queueOffline()
       setPhase('choose')
@@ -139,7 +161,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     const poll = setInterval(async () => {
       try {
         const s = await fetchOrderStatus(pixOrder.id)
-        if (s.paymentStatus === 'PAID') onPaid({ number: s.number, clientRef: null, offline: false })
+        if (s.paymentStatus === 'PAID') finish('PIX', { number: s.ticket, clientRef: null, offline: false })
         else if (s.paymentStatus === 'EXPIRED' || s.status === 'CANCELED') setPhase('expired')
       } catch {
         // falha momentânea de rede: tenta de novo no próximo ciclo

@@ -1,15 +1,17 @@
 import { useCallback, useState } from 'react'
 import { brl, fetchOrders, updateOrderStatus, type Order, type OrderStatus } from '../lib/api'
 import { useStaffSocket } from '../lib/useStaffSocket'
+import Comanda, { usePrint } from '../components/Comanda'
 
 interface ColumnProps {
   title: string
   orders: Order[]
   action: { label: string; next: OrderStatus }
   onAction: (id: string, next: OrderStatus) => void
+  onPrint: (o: Order) => void
 }
 
-function Column({ title, orders, action, onAction }: ColumnProps) {
+function Column({ title, orders, action, onAction, onPrint }: ColumnProps) {
   return (
     <section className="kcol">
       <h2>
@@ -19,7 +21,7 @@ function Column({ title, orders, action, onAction }: ColumnProps) {
         <article key={o.id} className="kcard">
           <header>
             <strong>
-              #{o.number}
+              #{o.ticket}
               {o.clientRef && <small className="ref">código {o.clientRef}</small>}
             </strong>
             <span>{o.mode === 'DINE_IN' ? '🍽️ Local' : '🛍️ Viagem'}</span>
@@ -41,7 +43,10 @@ function Column({ title, orders, action, onAction }: ColumnProps) {
             <span>
               {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {brl(o.totalCents)}
             </span>
-            <button onClick={() => onAction(o.id, action.next)}>{action.label}</button>
+            <span className="kactions">
+              <button className="icon" aria-label={`Imprimir comanda #${o.ticket}`} title="Imprimir comanda" onClick={() => onPrint(o)}>🖨️</button>
+              <button onClick={() => onAction(o.id, action.next)}>{action.label}</button>
+            </span>
           </footer>
         </article>
       ))}
@@ -75,6 +80,7 @@ export default function Kitchen({ token }: { token: string }) {
   }
 
   const by = (s: OrderStatus) => orders.filter((o) => o.status === s)
+  const { printing, print } = usePrint()
 
   return (
     <>
@@ -84,10 +90,11 @@ export default function Kitchen({ token }: { token: string }) {
       </div>
       {error && <p role="alert" className="error">{error}</p>}
       <div className="kgrid">
-        <Column title="Novos" orders={by('PAID')} action={{ label: 'Preparar', next: 'PREPARING' }} onAction={move} />
-        <Column title="Preparando" orders={by('PREPARING')} action={{ label: 'Pronto ✓', next: 'READY' }} onAction={move} />
-        <Column title="Prontos" orders={by('READY')} action={{ label: 'Entregue', next: 'DELIVERED' }} onAction={move} />
+        <Column title="Novos" orders={by('PAID')} action={{ label: 'Preparar', next: 'PREPARING' }} onAction={move} onPrint={print} />
+        <Column title="Preparando" orders={by('PREPARING')} action={{ label: 'Pronto ✓', next: 'READY' }} onAction={move} onPrint={print} />
+        <Column title="Prontos" orders={by('READY')} action={{ label: 'Entregue', next: 'DELIVERED' }} onAction={move} onPrint={print} />
       </div>
+      <Comanda order={printing} />
     </>
   )
 }

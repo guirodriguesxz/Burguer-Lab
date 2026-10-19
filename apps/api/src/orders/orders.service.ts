@@ -10,6 +10,7 @@ import { CreateOrderDto } from './orders.dto'
 import { canTransition } from './order-state'
 import { releaseOrder } from './order-release'
 import { PricingService } from './pricing.service'
+import { nextTicket } from './ticket'
 
 const include = { items: true, payment: true } as const
 
@@ -100,8 +101,12 @@ export class OrdersService {
         payment = { method: 'CARD' as const, amountCents: totalCents, status: 'PAID' as const, paidAt: new Date(), idempotencyKey }
       }
 
+      // A senha é alocada por último: o contador fica travado até o commit, e o Pix acima fala com um serviço externo.
+      const ticket = await nextTicket(tx)
+
       return tx.order.create({
         data: {
+          ticket,
           mode: dto.mode,
           totalCents,
           discountCents,
@@ -141,6 +146,7 @@ export class OrdersService {
     return {
       id: order.id,
       number: order.number,
+      ticket: order.ticket,
       status: order.status,
       paymentStatus: order.payment?.status ?? null,
       expiresAt: order.payment?.expiresAt ?? null,

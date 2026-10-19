@@ -109,3 +109,18 @@ select { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px;
 .cash-card footer { justify-content: flex-end; }
 .cash-total { margin-right: auto; font-size: 1.3rem; }
 .ghost { background: transparent; border: 2px solid var(--line); border-radius: 12px; padding: 10px 14px; font-weight: 600; color: var(--muted); }
+
+/* Comanda impressa (impressora térmica 80 mm): escondida na tela, só aparece ao imprimir */
+.print-area { display: none; }
+@media print {
+  @page { size: 80mm auto; margin: 3mm; }
+  #root { display: none !important; }
+  .print-area { display: block; color: #000; background: #fff; font-family: monospace; width: 74mm; }
+  .print-area h2 { font-size: 16pt; margin: 0 0 2mm; }
+  .print-area ul { list-style: none; padding: 0; }
+  .print-area li { margin-bottom: 2mm; font-size: 12pt; }
+  .print-area li small { display: block; padding-left: 4mm; font-size: 11pt; }
+  .print-area hr { border: 0; border-top: 1px dashed #000; }
+}
+.kactions { display: inline-flex; gap: 6px; align-items: center; }
+.kcard .icon { background: #4a3a2e; padding: 8px 10px; }

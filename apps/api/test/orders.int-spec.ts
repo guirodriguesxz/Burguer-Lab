@@ -113,6 +113,6 @@ describe('pedidos (integração)', () => {
   it('o status público não expõe itens nem valores', async () => {
     const { body: order } = await post({ mode: 'DINE_IN', method: 'CARD', items: [{ productId: 'cola', qty: 1 }] }).expect(201)
     const res = await request(app.getHttpServer()).get(`/api/orders/${order.id}/status`).expect(200)
-    expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'id', 'number', 'paymentStatus', 'status'])
+    expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'id', 'number', 'paymentStatus', 'status', 'ticket'])
   })
 })

@@ -52,9 +52,17 @@ export const createOrder = (cart: CartItem[], mode: Mode, method: PayMethod, ide
   sendOrder({ mode, method, couponCode, items: toItems(cart) }, idempotencyKey)
 
 export const fetchOrderStatus = (id: string) =>
-  request<{ id: string; number: number; status: Order['status']; paymentStatus: 'PENDING' | 'PAID' | 'EXPIRED' | null }>(
+  request<{
+    id: string
+    number: number
+    ticket: number
+    status: Order['status']
+    paymentStatus: 'PENDING' | 'PAID' | 'EXPIRED' | 'REFUNDED' | 'REFUND_FAILED' | null
+  }>(
     `/orders/${id}/status`,
   )
+
+export const fetchQueue = () => request<{ preparing: number[]; ready: number[] }>('/queue')
 
 /** Só desenvolvimento: faz o papel do banco/PSP confirmando o Pix via webhook assinado. */
 export const simulatePixPayment = (txid: string) => request<{ ok: boolean }>(`/dev/pix/${txid}/pay`, { method: 'POST' })

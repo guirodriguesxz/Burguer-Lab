@@ -73,7 +73,7 @@ export default function Cashier({ token }: { token: string }) {
             {orders.map((o) => (
               <article key={o.id} className="panel cash-card">
                 <header>
-                  <strong className="cash-number">#{o.number}</strong>
+                  <strong className="cash-number">#{o.ticket}</strong>
                   {o.clientRef && <small className="muted">código {o.clientRef}</small>}
                   <span className="muted">expira em {minutesLeft(o.payment?.expiresAt ?? null, now)}</span>
                 </header>

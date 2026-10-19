@@ -26,6 +26,7 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   orderCreated(order: unknown) {
     this.server.to('staff').emit('order:created', order)
+    this.queueChanged()
   }
 
   /** Pedido aguardando pagamento no caixa. */
@@ -35,6 +36,12 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   orderUpdated(order: unknown) {
     this.server.to('staff').emit('order:updated', order)
+    this.queueChanged()
+  }
+
+  /** A tela de senhas (pública) recarrega a fila; o aviso não leva dados. */
+  queueChanged() {
+    this.server.emit('queue:changed')
   }
 
   menuChanged() {

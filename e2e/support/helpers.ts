@@ -13,7 +13,7 @@ export const CREDS = {
 export async function resetState() {
   const prisma = new PrismaClient({ datasources: { db: { url: E2E_DB } } })
   try {
-    await prisma.$executeRawUnsafe('TRUNCATE "OrderEvent","Payment","OrderItem","Order" RESTART IDENTITY CASCADE')
+    await prisma.$executeRawUnsafe('TRUNCATE "OrderEvent","Payment","OrderItem","Order","DailyCounter" RESTART IDENTITY CASCADE')
     await prisma.$executeRawUnsafe('UPDATE "Coupon" SET "usedCount" = 0, active = true')
     await prisma.$executeRawUnsafe('UPDATE "Product" SET available = true, stock = CASE WHEN stock IS NULL THEN NULL ELSE 50 END')
   } finally {

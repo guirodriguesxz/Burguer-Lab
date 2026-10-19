@@ -59,6 +59,12 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+/// Contador da senha diária: uma linha por dia de operação (AAAA-MM-DD, fuso de São Paulo).
+model DailyCounter {
+  date String @id
+  last Int    @default(0)
+}
+
 model Category {
   id       String    @id
   label    String
@@ -93,6 +99,8 @@ model Extra {
 model Order {
   id         String      @id @default(uuid())
   number     Int         @unique @default(autoincrement())
+  /// Senha exibida ao cliente: recomeça em 1 a cada dia (fuso de São Paulo). `number` é o id interno, sequencial para sempre.
+  ticket     Int         @default(0)
   status     OrderStatus @default(CREATED)
   mode       OrderMode
   totalCents Int

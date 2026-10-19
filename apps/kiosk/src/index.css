@@ -144,3 +144,35 @@ button:focus-visible, a:focus-visible { outline: 4px solid var(--accent); outlin
   .pay-options { flex-direction: column; }
   .kgrid { grid-template-columns: 1fr; }
 }
+
+/* Comprovante impresso (impressora térmica 80 mm): escondido na tela, só aparece ao imprimir */
+.print-ticket { display: none; }
+@media print {
+  @page { size: 80mm auto; margin: 3mm; }
+  body * { visibility: hidden !important; }
+  .print-ticket, .print-ticket * { visibility: visible !important; }
+  .print-ticket { display: block; position: absolute; left: 0; top: 0; width: 74mm; color: #000; background: #fff; text-align: center; font-family: monospace; }
+  .print-ticket h2 { font-size: 18pt; margin: 0 0 2mm; }
+  .print-ticket .pt-label { font-size: 10pt; letter-spacing: 3px; margin: 3mm 0 0; }
+  .print-ticket .pt-number { font-size: 48pt; font-weight: 800; line-height: 1; margin: 0; }
+  .print-ticket ul { list-style: none; padding: 0; text-align: left; }
+  .print-ticket li small { display: block; padding-left: 4mm; }
+  .print-ticket hr { border: 0; border-top: 1px dashed #000; }
+  .print-ticket .pt-cash { font-weight: 800; border: 2px solid #000; padding: 2mm; }
+}
+
+/* Tela de senhas (televisão do salão) */
+.display { min-height: 100%; background: #14100d; color: #f6e7d6; padding: 28px 40px; display: flex; flex-direction: column; gap: 24px; user-select: none; }
+.display header { display: flex; align-items: center; gap: 20px; }
+.display header h1 { font-size: 2.4rem; margin-right: auto; }
+.display-offline { color: var(--accent); font-weight: 700; }
+.display-sound { background: #2a211a; color: #f6e7d6; padding: 10px 18px; border-radius: 12px; font-weight: 700; }
+.display-cols { flex: 1; display: grid; grid-template-columns: 1fr 1.4fr; gap: 28px; }
+.display-cols section { background: #221a14; border-radius: 28px; padding: 24px 28px; }
+.display-cols section.ready { background: #123222; }
+.display-cols h2 { font-size: 2rem; margin-bottom: 18px; opacity: .9; }
+.display-cols ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 16px; }
+.display-cols li { font-size: 4.5rem; font-weight: 800; min-width: 130px; text-align: center; padding: 8px 18px; border-radius: 20px; background: #3a2d23; }
+.display-cols .ready li { background: #1f7a4d; color: #fff; font-size: 6rem; }
+.display-cols li.flash { animation: flash 1s ease-in-out infinite; background: var(--accent); color: #000; }
+@keyframes flash { 50% { transform: scale(1.08); } }

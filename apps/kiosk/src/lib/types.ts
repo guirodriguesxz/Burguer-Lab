@@ -48,6 +48,8 @@ export interface OrderItem {
 export interface Order {
   id: string
   number: number
+  /** Senha do dia (recomeça em 1 todo dia); é a que o cliente vê. */
+  ticket: number
   status: OrderStatus
   mode: Mode
   totalCents: number

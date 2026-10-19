@@ -9,6 +9,8 @@ export type OrderStatus = 'CREATED' | 'PAID' | 'PREPARING' | 'READY' | 'DELIVERE
 export interface Order {
   id: string
   number: number
+  /** Senha do dia (recomeça em 1 todo dia). */
+  ticket: number
   status: OrderStatus
   mode: 'DINE_IN' | 'TAKEAWAY'
   totalCents: number
