@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, Logger, UnauthorizedException } from '
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import { Mailer } from '../mail/mailer'
+import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { PrismaService } from '../prisma/prisma.service'
 import { checkPassword } from './password-policy'
 import { AuthUser } from './roles.decorator'
@@ -24,13 +25,14 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly mailer: Mailer,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
     const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)
     // Mesma mensagem para e-mail inexistente e senha errada, para não revelar quais e-mails existem.
-    if (!user || !valid) throw new UnauthorizedException('E-mail ou senha incorretos')
+    if (!user || !valid || !user.active) throw new UnauthorizedException('E-mail ou senha incorretos')
 
     const payload: AuthUser = { sub: user.id, role: user.role, name: user.name, tv: user.tokenVersion }
     return {
@@ -72,6 +74,25 @@ export class AuthService {
       .catch((e) => this.log.error(`Falha ao enviar e-mail de redefinição: ${e instanceof Error ? e.message : e}`))
   }
 
+  /** Troca a senha de quem está logado. Derruba as outras sessões e devolve um token novo para esta continuar. */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user || !user.active) throw new UnauthorizedException('Sessão inválida')
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) throw new BadRequestException('Senha atual incorreta')
+
+    const policy = checkPassword(newPassword, user.email)
+    if (!policy.ok) throw new BadRequestException(policy.reason)
+    if (newPassword === currentPassword) throw new BadRequestException('A nova senha deve ser diferente da atual')
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await bcrypt.hash(newPassword, 10), tokenVersion: { increment: 1 } },
+    })
+    this.realtime.disconnectUser(userId) // a tela atual reconecta com o token novo
+    const payload: AuthUser = { sub: updated.id, role: updated.role, name: updated.name, tv: updated.tokenVersion }
+    return { token: await this.jwt.signAsync(payload) }
+  }
+
   async resetPassword(token: string, newPassword: string) {
     const record = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash: sha256(token) },
@@ -93,5 +114,6 @@ export class AuthService {
       await tx.user.update({ where: { id: record.userId }, data: { passwordHash, tokenVersion: { increment: 1 } } })
       await tx.passwordResetToken.deleteMany({ where: { userId: record.userId, id: { not: record.id } } })
     })
+    this.realtime.disconnectUser(record.userId)
   }
 }

@@ -9,6 +9,8 @@ const forgotSchema = z.object({ email: z.string().email().max(254) })
 const resetSchema = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/), password: z.string().max(200) })
 
 const loginLimit = () => Number(process.env.LOGIN_RATE_LIMIT ?? 5)
+const changeSchema = z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().max(200) })
+
 const resetLimit = () => Number(process.env.RESET_RATE_LIMIT ?? 5)
 
 @Controller('auth')
@@ -46,6 +48,16 @@ export class AuthController {
     if (!parsed.success) throw new BadRequestException('Link inválido ou expirado. Peça um novo.')
     await this.auth.resetPassword(parsed.data.token, parsed.data.password)
     return { ok: true }
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @UseGuards(AuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: loginLimit(), ttl: 60_000 } })
+  changePassword(@Body() body: unknown, @Req() req: { user: { sub: string } }) {
+    const parsed = changeSchema.safeParse(body)
+    if (!parsed.success) throw new BadRequestException('Informe a senha atual e a nova senha')
+    return this.auth.changePassword(req.user.sub, parsed.data.currentPassword, parsed.data.newPassword)
   }
 
   @Get('me')

@@ -23,9 +23,9 @@ export class SessionService {
     }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, role: true, tokenVersion: true },
+      select: { id: true, name: true, role: true, tokenVersion: true, active: true },
     })
-    if (!user || user.tokenVersion !== payload.tv) return null
+    if (!user || !user.active || user.tokenVersion !== payload.tv) return null
     return { sub: user.id, name: user.name, role: user.role, tv: user.tokenVersion }
   }
 }

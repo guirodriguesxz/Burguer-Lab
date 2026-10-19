@@ -42,6 +42,8 @@ model User {
   role         Role
   /// Incrementa ao trocar a senha: invalida todos os JWTs emitidos antes.
   tokenVersion Int      @default(0)
+  /// Usuário desativado não entra nem mantém sessão, mas continua no histórico.
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   resetTokens  PasswordResetToken[]
 }

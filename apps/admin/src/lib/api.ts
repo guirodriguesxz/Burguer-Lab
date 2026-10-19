@@ -160,3 +160,70 @@ export const fetchSummary =(token: string, days: number) =>
   request<Summary>(`/admin/reports/summary?days=${days}`, {}, token)
 
 export const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// ---------- Usuários, conta e histórico ----------
+
+export interface AdminUser {
+  id: string
+  name: string
+  email: string
+  role: Role
+  active: boolean
+  createdAt: string
+}
+
+export interface HistoryFilters {
+  from?: string
+  to?: string
+  status?: string
+  method?: string
+  refund?: string
+  q?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface HistoryPage {
+  items: (Order & { discountCents: number; couponCode: string | null })[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+const toQuery = (f: HistoryFilters) => {
+  const p = new URLSearchParams()
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '') p.set(k, String(v))
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
+export const fetchUsers = (token: string) => request<AdminUser[]>('/admin/users', {}, token)
+
+export const createUser = (token: string, data: { name: string; email: string; role: Role; password: string }) =>
+  request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(data) }, token)
+
+export const updateUser = (token: string, id: string, data: Partial<Pick<AdminUser, 'name' | 'role' | 'active'>>) =>
+  request<AdminUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token)
+
+export const sendUserReset = (token: string, id: string) =>
+  request<{ ok: boolean }>(`/admin/users/${id}/send-reset`, { method: 'POST' }, token)
+
+export const changePassword = (token: string, currentPassword: string, newPassword: string) =>
+  request<{ token: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }, token)
+
+export const fetchHistory = (token: string, f: HistoryFilters) => request<HistoryPage>(`/admin/orders${toQuery(f)}`, {}, token)
+
+export const refundOrder = (token: string, id: string) => request<Order>(`/admin/orders/${id}/refund`, { method: 'POST' }, token)
+
+/** Baixa o CSV (precisa do token, então não dá para ser um link simples). */
+export async function downloadHistoryCsv(token: string, f: HistoryFilters) {
+  const { page: _p, pageSize: _s, ...filters } = f
+  const res = await fetch(`/api/admin/orders/export.csv${toQuery(filters)}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new ApiError(res.status, 'Não foi possível gerar o arquivo')
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'pedidos.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}

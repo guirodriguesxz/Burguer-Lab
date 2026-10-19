@@ -124,3 +124,21 @@ select { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px;
 }
 .kactions { display: inline-flex; gap: 6px; align-items: center; }
 .kcard .icon { background: #4a3a2e; padding: 8px 10px; }
+
+/* Usuários, histórico e conta */
+.user-form, .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
+.user-form .field input, .user-form .field select, .filters .field input, .filters .field select { min-width: 150px; }
+.filters .grow { flex: 1; min-width: 200px; }
+.filters .grow input { width: 100%; }
+.hint { font-size: .85rem; margin: 0 0 12px; }
+.badge-me { background: var(--accent); color: #000; border-radius: 8px; padding: 1px 8px; font-size: .75rem; font-weight: 700; }
+.tag { font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--line); }
+.tag.bad { background: #fde0d8; color: var(--brand-dark); }
+.actions { white-space: nowrap; display: flex; gap: 6px; justify-content: flex-end; }
+.danger { color: var(--brand-dark); border-color: #f1c4b8; }
+tr.detail td { background: #faf6f0; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+.overlay { position: fixed; inset: 0; background: rgba(42,26,16,.55); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.dialog { width: min(420px, 100%); background: var(--card); padding: 28px; border-radius: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+button:disabled { opacity: .55; cursor: not-allowed; }

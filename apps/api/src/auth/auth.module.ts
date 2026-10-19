@@ -20,6 +20,6 @@ import { SessionService } from './session.service'
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthGuard, SessionService],
-  exports: [AuthGuard, SessionService],
+  exports: [AuthGuard, SessionService, AuthService],
 })
 export class AuthModule {}

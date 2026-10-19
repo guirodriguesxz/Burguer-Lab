@@ -21,7 +21,19 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!token) return // conexão pública: só recebe eventos de broadcast
     const user = await this.sessions.verify(token)
     if (!user) return client.disconnect(true)
+    client.data.userId = user.sub
     if (user.role === 'ADMIN' || user.role === 'KITCHEN' || user.role === 'CASHIER') await client.join('staff')
+  }
+
+  /**
+   * Encerra as conexões em tempo real de um usuário. Chamado quando as sessões dele são revogadas
+   * (senha trocada, papel alterado, usuário desativado): sem isso, um socket já aberto continuaria
+   * recebendo pedidos mesmo depois de o acesso ser cortado.
+   */
+  disconnectUser(userId: string) {
+    for (const socket of this.server.sockets.sockets.values()) {
+      if (socket.data.userId === userId) socket.disconnect(true)
+    }
   }
 
   orderCreated(order: unknown) {

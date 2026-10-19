@@ -1,49 +1,11 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
+import PasswordInput from '../components/PasswordInput'
 import { forgotPassword, login, resetPassword, type Session } from '../lib/api'
 
 type Mode = 'login' | 'forgot' | 'forgot-sent' | 'reset'
 
 /** Token de redefinição vindo do link do e-mail (?reset=...). */
 const tokenFromUrl = () => new URLSearchParams(window.location.search).get('reset')
-
-function PasswordInput({
-  label,
-  value,
-  onChange,
-  autoComplete,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  autoComplete: string
-}) {
-  const [visible, setVisible] = useState(false)
-  const id = useId()
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <span className="pw">
-        <input
-          id={id}
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          required
-        />
-        <button
-          type="button"
-          className="pw-toggle"
-          onClick={() => setVisible(!visible)}
-          aria-pressed={visible}
-          aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
-        >
-          {visible ? 'Ocultar' : 'Mostrar'}
-        </button>
-      </span>
-    </div>
-  )
-}
 
 export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   const [mode, setMode] = useState<Mode>(tokenFromUrl() ? 'reset' : 'login')
