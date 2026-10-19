@@ -11,6 +11,7 @@ import { canTransition } from './order-state'
 import { releaseOrder } from './order-release'
 import { PricingService } from './pricing.service'
 import { nextTicket } from './ticket'
+import { MetricsService } from '../observability/metrics.service'
 
 const include = { items: true, payment: true } as const
 
@@ -22,6 +23,7 @@ export class OrdersService {
     private readonly pricing: PricingService,
     private readonly pix: PixProvider,
     private readonly payments: PaymentsService,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -121,6 +123,8 @@ export class OrdersService {
       })
     })
 
+    this.metrics.ordersCreated.inc({ method: dto.method })
+    if (dto.method === 'CARD') this.metrics.paymentsConfirmed.inc({ method: 'CARD' }) // cartão já nasce pago
     // Notifica depois do commit.
     if (order.status === 'PAID') this.realtime.orderCreated(order)
     else if (dto.method === 'CASH') this.realtime.orderPending(order) // o caixa vê o novo pedido na hora

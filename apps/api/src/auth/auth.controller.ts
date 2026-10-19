@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { actorOf, AuditService } from '../audit/audit.service'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
+import { MetricsService } from '../observability/metrics.service'
 import { clearSessionCookie, setSessionCookie } from './cookies'
 import { SessionService } from './session.service'
 import { SessionUser } from './roles.decorator'
@@ -25,6 +26,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -44,11 +46,13 @@ export class AuthController {
       result = await this.auth.login(parsed.data.email, parsed.data.password)
     } catch (e) {
       if (e instanceof UnauthorizedException) {
+        this.metrics.logins.inc({ result: 'failure' })
         await this.audit.record(null, 'auth.login_failed', { meta: { email: parsed.data.email.toLowerCase().slice(0, 254) }, ip: req.ip })
       }
       throw e
     }
     setSessionCookie(res, result.token)
+    this.metrics.logins.inc({ result: 'success' })
     await this.audit.record({ id: result.user.id, email: result.user.email }, 'auth.login', { entity: 'User', entityId: result.user.id, ip: req.ip })
     return { user: result.user }
   }

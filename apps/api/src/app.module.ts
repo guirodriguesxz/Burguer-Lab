@@ -11,10 +11,12 @@ import { CouponsModule } from './coupons/coupons.module'
 import { HealthController } from './health/health.controller'
 import { MailModule } from './mail/mail.module'
 import { AuditModule } from './audit/audit.module'
+import { ObservabilityModule } from './observability/observability.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ObservabilityModule,
     PrismaModule,
     MailModule,
     AuditModule,

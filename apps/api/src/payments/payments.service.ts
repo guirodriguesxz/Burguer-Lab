@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { PixProvider } from './pix.provider'
 import { requireSecret } from '../config'
 import { releaseOrder } from '../orders/order-release'
+import { MetricsService } from '../observability/metrics.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { signPayload, verifySignature } from './signature'
@@ -34,6 +35,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
     private readonly pix: PixProvider,
+    private readonly metrics: MetricsService,
   ) {}
 
   onModuleInit() {
@@ -89,6 +91,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     })
 
     if (!confirmed) return this.confirmPix(txid, amountCents)
+    this.metrics.paymentsConfirmed.inc({ method: 'PIX' })
     this.realtime.orderCreated(confirmed)
     return { ok: true, alreadyProcessed: false }
   }
@@ -134,6 +137,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: orderInclude })
     })
 
+    this.metrics.paymentsConfirmed.inc({ method: 'CASH' })
     this.realtime.orderCreated(confirmed)
     return confirmed
   }
@@ -157,13 +161,16 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         payment.method === 'PIX' && payment.txid
           ? await this.pix.refund({ txid: payment.txid, providerRef: payment.providerRef, amountCents: payment.amountCents })
           : { refundId: `manual-${payment.method.toLowerCase()}` }
-      return await this.prisma.payment.update({
+      const refunded = await this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: 'REFUNDED', refundedAt: new Date(), refundId, refundError: null },
       })
+      this.metrics.refunds.inc({ result: 'refunded' })
+      return refunded
     } catch (e) {
       const message = e instanceof Error ? e.message.slice(0, 300) : 'erro desconhecido'
       this.log.error(`Estorno do pedido ${orderId} falhou: ${message}`)
+      this.metrics.refunds.inc({ result: 'failed' })
       return this.prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUND_FAILED', refundError: message } })
     }
   }
@@ -196,7 +203,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
     for (const p of expiredPayments) await this.cancelProviderCharge(p)
 
-    if (expired > 0) this.realtime.menuChanged()
+    if (expired > 0) {
+      this.metrics.paymentsExpired.inc(expired)
+      this.realtime.menuChanged()
+    }
     return expired
   }
 

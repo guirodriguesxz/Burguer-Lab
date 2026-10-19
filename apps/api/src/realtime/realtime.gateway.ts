@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { OnGatewayConnection, WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
+import { OnGatewayConnection, OnGatewayDisconnect, WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
 import { Server, Socket } from 'socket.io'
 import { SessionService } from '../auth/session.service'
 import { parseCookies, SESSION_COOKIE } from '../auth/cookies'
 import { corsOrigin } from '../cors'
+import { MetricsService } from '../observability/metrics.service'
 
 /**
  * Eventos em tempo real.
@@ -12,12 +13,20 @@ import { corsOrigin } from '../cors'
  */
 @Injectable()
 @WebSocketGateway({ cors: { origin: corsOrigin(), credentials: true } })
-export class RealtimeGateway implements OnGatewayConnection {
+export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server
 
-  constructor(private readonly sessions: SessionService) {}
+  constructor(
+    private readonly sessions: SessionService,
+    private readonly metrics: MetricsService,
+  ) {}
+
+  handleDisconnect() {
+    this.metrics.wsConnections.dec()
+  }
 
   async handleConnection(client: Socket) {
+    this.metrics.wsConnections.inc()
     const fromAuth = client.handshake.auth?.token as string | undefined
     const fromCookie = parseCookies(client.handshake.headers.cookie)[SESSION_COOKIE]
     const token = fromAuth ?? fromCookie

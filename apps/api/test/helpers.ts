@@ -22,7 +22,7 @@ const burgerExtra = (id: string, name: string, priceCents: number, productId: st
 /** Limpa o banco e recria um cardápio pequeno e previsível. */
 export async function resetDb(prisma: PrismaClient) {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "OrderEvent","Payment","OrderItem","Order","DailyCounter","Extra","Product","Category","Coupon","User" RESTART IDENTITY CASCADE',
+    'TRUNCATE "OrderEvent","Payment","OrderItem","Order","DailyCounter","AuditLog","RevokedToken","Extra","Product","Category","Coupon","User" RESTART IDENTITY CASCADE',
   )
   await prisma.category.createMany({
     data: [
