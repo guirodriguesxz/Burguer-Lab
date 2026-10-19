@@ -32,7 +32,7 @@ export class MenuController {
     const sales = new Map(sold.map((s) => [s.productId, s._sum.qty ?? 0]))
 
     const candidates = await this.prisma.product.findMany({
-      where: { categoryId: { in: wanted.map((w) => w.category) }, available: true, OR: [{ stock: null }, { stock: { gt: 0 } }] },
+      where: { categoryId: { in: wanted.map((w) => w.category) }, available: true, archived: false, OR: [{ stock: null }, { stock: { gt: 0 } }] },
     })
 
     return wanted.flatMap((w) => {
@@ -47,10 +47,12 @@ export class MenuController {
   async getMenu() {
     const [categories, products] = await Promise.all([
       this.prisma.category.findMany({ orderBy: { position: 'asc' } }),
-      this.prisma.product.findMany({ include: { extras: true }, orderBy: { priceCents: 'asc' } }),
+      this.prisma.product.findMany({ where: { archived: false }, include: { extras: true }, orderBy: { priceCents: 'asc' } }),
     ])
+    const withProducts = new Set(products.map((p) => p.categoryId))
     return {
-      categories,
+      // categoria sem nenhum produto à venda não vira aba vazia no totem
+      categories: categories.filter((c) => withProducts.has(c.id)),
       products: products.map((p) => ({
         id: p.id,
         name: p.name,

@@ -23,15 +23,6 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { ReportsService } from './reports.service'
 
-const updateProductSchema = z
-  .object({
-    priceCents: z.number().int().min(1).max(1_000_000),
-    available: z.boolean(),
-    stock: z.number().int().min(0).nullable(),
-  })
-  .partial()
-  .refine((v) => Object.keys(v).length > 0, 'Nenhum campo para atualizar')
-
 const createCouponSchema = z
   .object({
     code: z.string().trim().min(3).max(32),
@@ -59,22 +50,6 @@ export class AdminController {
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
   ) {}
-
-  @Get('products')
-  products() {
-    return this.prisma.product.findMany({ orderBy: [{ categoryId: 'asc' }, { name: 'asc' }] })
-  }
-
-  @Patch('products/:id')
-  async updateProduct(@Param('id') id: string, @Body() body: unknown) {
-    const parsed = updateProductSchema.safeParse(body)
-    if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
-    const exists = await this.prisma.product.findUnique({ where: { id } })
-    if (!exists) throw new NotFoundException('Produto não encontrado')
-    const product = await this.prisma.product.update({ where: { id }, data: parsed.data })
-    this.realtime.menuChanged()
-    return product
-  }
 
   @Get('coupons')
   coupons() {

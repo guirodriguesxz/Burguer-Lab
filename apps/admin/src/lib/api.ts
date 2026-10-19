@@ -33,37 +33,6 @@ export interface Order {
   }[]
 }
 
-export interface AdminProduct {
-  id: string
-  name: string
-  categoryId: string
-  emoji: string
-  priceCents: number
-  available: boolean
-  stock: number | null
-}
-
-export interface Coupon {
-  id: string
-  code: string
-  type: 'PERCENT' | 'FIXED'
-  value: number
-  minOrderCents: number
-  maxUses: number | null
-  usedCount: number
-  expiresAt: string | null
-  active: boolean
-}
-
-export interface NewCoupon {
-  code: string
-  type: 'PERCENT' | 'FIXED'
-  value: number
-  minOrderCents: number
-  maxUses: number | null
-  expiresAt: string | null
-}
-
 export interface Summary {
   days: number
   orders: number
@@ -139,14 +108,6 @@ export const confirmCash = (token: string, id: string) =>
 
 export const updateOrderStatus = (token: string, id: string, status: OrderStatus) =>
   request<Order>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, token)
-
-export const fetchProducts = (token: string) => request<AdminProduct[]>('/admin/products', {}, token)
-
-export const patchProduct = (
-  token: string,
-  id: string,
-  data: Partial<Pick<AdminProduct, 'priceCents' | 'available' | 'stock'>>,
-) => request<AdminProduct>(`/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token)
 
 export const fetchCoupons = (token: string) => request<Coupon[]>('/admin/coupons', {}, token)
 
@@ -226,4 +187,87 @@ export async function downloadHistoryCsv(token: string, f: HistoryFilters) {
   a.download = 'pedidos.csv'
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// ---------- Cardápio (produtos, adicionais, categorias) ----------
+
+export interface AdminExtra {
+  id: string
+  name: string
+  priceCents: number
+}
+
+export interface AdminProduct {
+  id: string
+  name: string
+  description: string
+  emoji: string
+  categoryId: string
+  priceCents: number
+  available: boolean
+  archived: boolean
+  /** null = estoque ilimitado */
+  stock: number | null
+  removable: string[]
+  extras: AdminExtra[]
+}
+
+export interface AdminCategory {
+  id: string
+  label: string
+  emoji: string
+}
+
+export type ProductInput = Pick<AdminProduct, 'name' | 'description' | 'emoji' | 'categoryId' | 'priceCents' | 'stock' | 'removable' | 'available'>
+
+export const fetchProducts = (token: string, archived = false) =>
+  request<AdminProduct[]>(`/admin/products${archived ? '?archived=true' : ''}`, {}, token)
+
+export const createProduct = (token: string, data: ProductInput) =>
+  request<AdminProduct>('/admin/products', { method: 'POST', body: JSON.stringify(data) }, token)
+
+export const patchProduct = (token: string, id: string, data: Partial<ProductInput>) =>
+  request<AdminProduct>(`/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token)
+
+export const archiveProduct = (token: string, id: string) => request<AdminProduct>(`/admin/products/${id}`, { method: 'DELETE' }, token)
+
+export const restoreProduct = (token: string, id: string) => request<AdminProduct>(`/admin/products/${id}/restore`, { method: 'POST' }, token)
+
+export const createExtra = (token: string, productId: string, data: Omit<AdminExtra, 'id'>) =>
+  request<AdminExtra>(`/admin/products/${productId}/extras`, { method: 'POST', body: JSON.stringify(data) }, token)
+
+export const patchExtra = (token: string, id: string, data: Partial<Omit<AdminExtra, 'id'>>) =>
+  request<AdminExtra>(`/admin/extras/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token)
+
+export const deleteExtra = (token: string, id: string) => request<{ ok: boolean }>(`/admin/extras/${id}`, { method: 'DELETE' }, token)
+
+export const fetchCategories = (token: string) => request<AdminCategory[]>('/admin/categories', {}, token)
+
+export const createCategory = (token: string, data: { label: string; emoji: string }) =>
+  request<AdminCategory>('/admin/categories', { method: 'POST', body: JSON.stringify(data) }, token)
+
+/** "24,90" ou "24.90" em centavos; NaN se não for um valor. */
+export const parseMoney = (text: string) => Math.round(parseFloat(text.replace(',', '.')) * 100)
+
+// ---------- Cupons ----------
+
+export interface Coupon {
+  id: string
+  code: string
+  type: 'PERCENT' | 'FIXED'
+  value: number
+  minOrderCents: number
+  maxUses: number | null
+  usedCount: number
+  expiresAt: string | null
+  active: boolean
+}
+
+export interface NewCoupon {
+  code: string
+  type: 'PERCENT' | 'FIXED'
+  value: number
+  minOrderCents: number
+  maxUses: number | null
+  expiresAt: string | null
 }

@@ -82,6 +82,8 @@ model Product {
   priceCents  Int
   emoji       String
   available   Boolean  @default(true)
+  /// "Excluído": some do cardápio e não pode ser vendido, mas continua no histórico de pedidos.
+  archived    Boolean  @default(false)
   stock       Int?
   removable   String[]
   categoryId  String

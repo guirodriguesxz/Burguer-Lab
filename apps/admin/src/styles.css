@@ -142,3 +142,21 @@ tr.detail td { background: #faf6f0; }
 .dialog { width: min(420px, 100%); background: var(--card); padding: 28px; border-radius: 20px; display: flex; flex-direction: column; gap: 14px; }
 .dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
 button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Editor de produto */
+.toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.editor { width: min(680px, 100%); max-height: 92vh; overflow-y: auto; }
+.editor-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: start; }
+.editor-form .wide { grid-column: 1 / -1; }
+.editor-form .field.small { max-width: 110px; }
+.editor-form .field input, .editor-form .field select { width: 100%; }
+.inline-new { display: flex; gap: 6px; margin-top: 6px; }
+.inline-new input:first-child { width: 56px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border: 2px solid var(--line); border-radius: 10px; padding: 6px; background: #fff; }
+.chips input { border: 0; padding: 4px 6px; flex: 1; min-width: 130px; }
+.chip-item { background: var(--line); border-radius: 14px; padding: 3px 4px 3px 10px; display: inline-flex; gap: 4px; align-items: center; font-weight: 600; font-size: .85rem; }
+.chip-item button { background: transparent; font-size: 1rem; line-height: 1; padding: 0 6px; color: var(--muted); }
+.extras ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.extras li { display: grid; grid-template-columns: 1fr 100px auto; gap: 8px; align-items: center; }
+.extra-new { display: grid; grid-template-columns: 1fr 100px auto; gap: 8px; margin-top: 8px; }
+.archive { align-self: flex-start; }

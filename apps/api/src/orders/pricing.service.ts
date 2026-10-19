@@ -26,7 +26,7 @@ export class PricingService {
     const lines: PricedLine[] = items.map((i) => {
       const p = byId.get(i.productId)
       if (!p) throw new BadRequestException(`Produto inexistente: ${i.productId}`)
-      if (!p.available) throw new ConflictException(`${p.name} está indisponível`)
+      if (!p.available || p.archived) throw new ConflictException(`${p.name} está indisponível`)
       const removable = new Set(p.removable)
       for (const r of i.removed) {
         if (!removable.has(r)) throw new BadRequestException(`Ingrediente não removível em ${p.name}: ${r}`)
