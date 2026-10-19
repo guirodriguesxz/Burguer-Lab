@@ -190,6 +190,8 @@ export interface AdminProduct {
   id: string
   name: string
   description: string
+  nameEn?: string | null
+  descriptionEn?: string | null
   emoji: string
   categoryId: string
   priceCents: number
@@ -207,7 +209,7 @@ export interface AdminCategory {
   emoji: string
 }
 
-export type ProductInput = Pick<AdminProduct, 'name' | 'description' | 'emoji' | 'categoryId' | 'priceCents' | 'stock' | 'removable' | 'available'>
+export type ProductInput = Pick<AdminProduct, 'name' | 'description' | 'nameEn' | 'descriptionEn' | 'emoji' | 'categoryId' | 'priceCents' | 'stock' | 'removable' | 'available'>
 
 export const fetchProducts = (archived = false) =>
   request<AdminProduct[]>(`/admin/products${archived ? '?archived=true' : ''}`)

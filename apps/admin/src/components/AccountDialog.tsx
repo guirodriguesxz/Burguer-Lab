@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { changePassword, type Session } from '../lib/api'
+import { useDialog } from '../lib/useDialog'
 import PasswordInput from './PasswordInput'
 
 /** "Alterar minha senha": pede a senha atual; as outras sessões caem e esta continua com um cookie novo. */
@@ -10,6 +11,7 @@ export default function AccountDialog({ session, onClose }: { session: Session; 
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
+  const ref = useDialog<HTMLFormElement>(onClose)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,7 +30,7 @@ export default function AccountDialog({ session, onClose }: { session: Session; 
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Alterar minha senha">
-      <form className="dialog" onSubmit={submit}>
+      <form className="dialog" onSubmit={submit} ref={ref} tabIndex={-1}>
         <h2>Alterar minha senha</h2>
         <p className="muted">{session.user.email}</p>
         {done ? (

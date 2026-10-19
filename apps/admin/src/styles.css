@@ -2,11 +2,11 @@
   --bg: #f6f1ea;
   --card: #fff;
   --ink: #2a1a10;
-  --muted: #7a6a5e;
-  --brand: #e8461e;
+  --muted: #6b5b4f;
+  --brand: #cf3a12;
   --brand-dark: #b9330f;
   --line: #e8dccd;
-  --ok: #1f9d55;
+  --ok: #157a41;
   --accent: #ffb703;
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
   color: var(--ink);
@@ -163,3 +163,5 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
 .boot { padding: 40px; text-align: center; }
 .audit-details { font-size: .85rem; color: var(--muted); max-width: 420px; word-break: break-word; }
+
+.dialog:focus { outline: none; }

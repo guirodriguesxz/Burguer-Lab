@@ -30,6 +30,10 @@ flowchart LR
 - **Gestão**: pausar produto, ajustar preço e estoque (refletem no totem na hora), cupons (percentual/fixo, mínimo, limite de usos, validade) e relatórios (faturamento, ticket médio, pedidos por hora, mais vendidos).
 - **Offline**: o totem abre sem internet, usa a última cópia do cardápio e aceita pedidos no cartão numa fila local que sincroniza ao reconectar.
 
+- **Caixa e operação**: pagamento no caixa com senha, senha diária, tela de senhas chamadas, impressão de comprovante, usuários e troca de senha, histórico de pedidos com CSV, cadastro de produtos/adicionais/categorias, reembolso.
+- **Produção**: sessão em cookie HttpOnly com logout que revoga, trilha de auditoria, logs estruturados, métricas Prometheus, Sentry opcional, backup criptografado. Veja [docs/OPERACAO.md](docs/OPERACAO.md).
+- **Acessibilidade e idiomas**: totem em português e inglês (nomes e descrições do cardápio traduzíveis pelo painel), alto contraste, texto maior, navegação por teclado, varredura axe-core (WCAG 2.1 AA) nos testes.
+
 ## Decisões de projeto
 
 **Consistência de dados**
@@ -126,6 +130,9 @@ A imagem aplica as migrações ao iniciar e, com `SEED_ON_BOOT=true`, faz o seed
 | `MP_PAYER_EMAIL` | e-mail de pagador enviado ao Mercado Pago (a API exige; padrão genérico) |
 | `CASHIER_EMAIL`, `CASHIER_PASSWORD` | conta do caixa criada pelo seed de produção (opcional) |
 | `LOGIN_RATE_LIMIT`, `RESET_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `COUPON_RATE_LIMIT`, `RATE_LIMIT` | limites por minuto e por IP (padrões: 5, 5, 40, 20, 120) |
+| `METRICS_TOKEN` | protege `/metrics` (sem ele, o endpoint não é exposto) |
+| `SENTRY_DSN`, `LOG_LEVEL` | relatório de erros (opcional) e nível de log |
+| `AUDIT_RETENTION_DAYS`, `COOKIE_SECURE` | retenção da auditoria; força o flag Secure do cookie |
 | `CORS_ORIGIN` | origens permitidas, separadas por vírgula (padrão: qualquer) |
 
 ## Roadmap
@@ -134,4 +141,7 @@ A imagem aplica as migrações ao iniciar e, com `SEED_ON_BOOT=true`, faz o seed
 - [x] Fase 2: WebSocket, painel da equipe com login/RBAC, relatórios
 - [x] Fase 3: Pix com webhook, cupons, upsell, PWA offline
 - [x] Fase 4: testes de integração e E2E, CI, Docker e config de deploy
-- [ ] Próximos: integração com um PSP Pix real (Mercado Pago/Stripe em modo teste), impressão de senha/comanda, tela de senhas chamadas, observabilidade (logs estruturados, métricas)
+- [x] Fase 5: pagamentos (Mercado Pago, reembolso, caixa)
+- [x] Fase 6: operação (senhas, impressão, usuários, histórico, cadastro de produtos)
+- [x] Fase 7: produção e qualidade (cookie HttpOnly, auditoria, observabilidade, backup, acessibilidade, inglês)
+- [ ] Próximos: validar o Pix real em sandbox, domínio próprio, mais idiomas

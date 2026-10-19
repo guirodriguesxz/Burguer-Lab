@@ -29,7 +29,7 @@ export class CouponsController {
     const { subtotalCents } = await this.pricing.price(parsed.data.items, this.prisma)
     const coupon = await this.prisma.coupon.findUnique({ where: { code: normalizeCode(parsed.data.code) } })
     const result = evaluateCoupon(coupon, subtotalCents)
-    if (!result.ok) return { valid: false, reason: result.reason }
+    if (!result.ok) return { valid: false, reason: result.reason, code: result.code, minOrderCents: result.minOrderCents }
     return {
       valid: true,
       code: coupon!.code,

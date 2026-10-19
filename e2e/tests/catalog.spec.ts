@@ -32,8 +32,8 @@ test('cadastro: cria produto com adicional, o totem mostra ao vivo, vende com o 
   await admin.page.getByRole('button', { name: /Novo produto/ }).click()
 
   const editor = admin.page.getByRole('dialog', { name: 'Novo produto' })
-  await editor.getByLabel('Nome').fill(NAME)
-  await editor.getByLabel('Descrição').fill('Costela desfiada e cheddar')
+  await editor.getByLabel('Nome', { exact: true }).fill(NAME)
+  await editor.getByLabel('Descrição', { exact: true }).fill('Costela desfiada e cheddar')
   await editor.getByLabel('Categoria').selectOption({ label: '🍔 Hambúrgueres' })
   await editor.getByLabel('Preço (R$)').fill('34,90')
   await editor.getByLabel('Estoque').fill('10')
@@ -86,7 +86,7 @@ test('cadastro: dados inválidos mostram o erro do servidor e nada é criado', a
   await admin.page.getByRole('button', { name: /Novo produto/ }).click()
 
   const editor = admin.page.getByRole('dialog', { name: 'Novo produto' })
-  await editor.getByLabel('Nome').fill(NAME)
+  await editor.getByLabel('Nome', { exact: true }).fill(NAME)
   await editor.getByLabel('Preço (R$)').fill('0')
   await editor.getByRole('button', { name: 'Criar produto' }).click()
   await expect(editor.getByRole('alert')).toBeVisible()

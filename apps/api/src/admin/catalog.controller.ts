@@ -37,9 +37,20 @@ type Req = { user: SessionUser; ip?: string }
 
 const MAX_EXTRAS_PER_PRODUCT = 12
 
+/** Texto opcional: vazio vira null (sem tradução). */
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => (v === '' ? null : v))
+    .nullable()
+
 const productFields = {
   name: z.string().trim().min(2).max(60),
   description: z.string().trim().max(200),
+  nameEn: optionalText(60),
+  descriptionEn: optionalText(200),
   priceCents: z.number().int().min(1).max(1_000_000),
   emoji: z.string().trim().min(1).max(8),
   categoryId: z.string().min(1).max(64),
@@ -55,6 +66,8 @@ const productFields = {
 const createProductSchema = z.object({
   ...productFields,
   description: productFields.description.default(''),
+  nameEn: productFields.nameEn.default(null),
+  descriptionEn: productFields.descriptionEn.default(null),
   stock: productFields.stock.default(null),
   available: productFields.available.default(true),
   removable: productFields.removable.default([]),
@@ -65,12 +78,17 @@ const updateProductSchema = z
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nenhum campo para atualizar')
 
-const extraFields = { name: z.string().trim().min(2).max(40), priceCents: z.number().int().min(0).max(100_000) }
-const createExtraSchema = z.object(extraFields)
+const extraFields = { name: z.string().trim().min(2).max(40), nameEn: optionalText(40), priceCents: z.number().int().min(0).max(100_000) }
+const createExtraSchema = z.object({ ...extraFields, nameEn: extraFields.nameEn.default(null) })
 const updateExtraSchema = z.object(extraFields).partial().refine((v) => Object.keys(v).length > 0, 'Nenhum campo para atualizar')
 
-const categoryFields = { label: z.string().trim().min(2).max(40), emoji: z.string().trim().min(1).max(8), position: z.number().int().min(0).max(999) }
-const createCategorySchema = z.object({ ...categoryFields, position: categoryFields.position.default(99) })
+const categoryFields = {
+  label: z.string().trim().min(2).max(40),
+  labelEn: optionalText(40),
+  emoji: z.string().trim().min(1).max(8),
+  position: z.number().int().min(0).max(999),
+}
+const createCategorySchema = z.object({ ...categoryFields, labelEn: categoryFields.labelEn.default(null), position: categoryFields.position.default(99) })
 const updateCategorySchema = z.object(categoryFields).partial().refine((v) => Object.keys(v).length > 0, 'Nenhum campo para atualizar')
 
 const withExtras = { extras: { orderBy: { name: 'asc' as const } } }

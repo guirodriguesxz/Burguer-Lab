@@ -1,12 +1,14 @@
 export interface Category {
   id: string
   label: string
+  labelEn?: string | null
   emoji: string
 }
 
 export interface Extra {
   id: string
   name: string
+  nameEn?: string | null
   /** Em centavos */
   priceCents: number
 }
@@ -14,7 +16,9 @@ export interface Extra {
 export interface Product {
   id: string
   name: string
+  nameEn?: string | null
   description: string
+  descriptionEn?: string | null
   /** Em centavos */
   priceCents: number
   category: string
@@ -63,15 +67,18 @@ export interface Order {
 export interface CouponPreview {
   valid: boolean
   reason?: string
+  /** Válido: o código do cupom. Inválido: INVALID | EXPIRED | EXHAUSTED | MIN_ORDER. */
   code?: string
+  minOrderCents?: number
   subtotalCents?: number
   discountCents?: number
   totalCents?: number
 }
 
 export interface UpsellSuggestion {
+  kind: string
   reason: string
-  product: { id: string; name: string; emoji: string; priceCents: number }
+  product: { id: string; name: string; nameEn?: string | null; emoji: string; priceCents: number }
 }
 
 export interface OrderPayload {

@@ -3,6 +3,7 @@ import { io } from 'socket.io-client'
 import { fetchUpsell } from '../lib/api'
 import { loadMenu, useConnectivity } from '../lib/offline'
 import type { CartItem, Category, Mode, Product, UpsellSuggestion } from '../lib/types'
+import { I18nProvider, useI18n, type Lang } from '../lib/i18n'
 import Welcome from './Welcome'
 import Menu from './Menu'
 import Customize from './Customize'
@@ -35,6 +36,18 @@ const IDLE_MS = 60_000
 const IDLE_CHECKOUT_MS = 6 * 60_000
 
 export default function Kiosk() {
+  const [lang, setLang] = useState<Lang>('pt')
+  return (
+    <I18nProvider lang={lang}>
+      <KioskScreens lang={lang} setLang={setLang} />
+    </I18nProvider>
+  )
+}
+
+function KioskScreens({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+  const { t } = useI18n()
+  const [contrast, setContrast] = useState(false)
+  const [bigText, setBigText] = useState(false)
   const { online, queued } = useConnectivity()
   const [screen, setScreen] = useState<Screen>('welcome')
   const [mode, setMode] = useState<Mode>('DINE_IN')
@@ -52,8 +65,18 @@ export default function Kiosk() {
     setTicket(null)
     setUpsell(null)
     setUpsellSeen(false)
+    // Cada cliente começa do padrão: idioma, contraste e tamanho de texto não passam para o próximo.
+    setLang('pt')
+    setContrast(false)
+    setBigText(false)
     setScreen('welcome')
-  }, [])
+  }, [setLang])
+
+  useEffect(() => {
+    document.documentElement.lang = lang === 'en' ? 'en' : 'pt-BR'
+    document.documentElement.classList.toggle('hc', contrast)
+    document.documentElement.classList.toggle('big', bigText)
+  }, [lang, contrast, bigText])
 
   // Volta ao início após inatividade (a tela de pedido concluído tem timer próprio).
   useEffect(() => {
@@ -112,12 +135,17 @@ export default function Kiosk() {
     <div className="kiosk">
       {(!online || queued > 0) && (
         <div className="banner" role="status">
-          {!online ? '⚠️ Sem conexão: usando o último cardápio. Pedidos no cartão são enviados quando a internet voltar.' : ''}
-          {queued > 0 && ` ${queued} pedido(s) aguardando envio.`}
+          {!online ? t('banner.offline') : ''}
+          {queued > 0 && ` ${t('banner.queued', { n: queued })}`}
         </div>
       )}
       {screen === 'welcome' && (
         <Welcome
+          onLang={setLang}
+          contrast={contrast}
+          onContrast={setContrast}
+          bigText={bigText}
+          onBigText={setBigText}
           onStart={(m) => {
             setMode(m)
             setScreen('menu')
@@ -126,15 +154,15 @@ export default function Kiosk() {
       )}
       {screen === 'menu' && menuError && !menu && (
         <main className="checkout">
-          <h1>Sem conexão</h1>
-          <p className="muted">Não foi possível carregar o cardápio.</p>
-          <button className="btn-primary" onClick={reset}>Voltar</button>
+          <h1>{t('menu.noConnection')}</h1>
+          <p className="muted">{t('menu.loadFailed')}</p>
+          <button className="btn-primary" onClick={reset}>{t('menu.back')}</button>
         </main>
       )}
       {screen === 'menu' && !menu && !menuError && (
         <main className="checkout" role="status">
           <div className="spinner" />
-          <p>Carregando cardápio…</p>
+          <p>{t('menu.loading')}</p>
         </main>
       )}
       {screen === 'menu' && menu && (

@@ -12,11 +12,36 @@ const categories = [
 ]
 
 const burgerExtras = (pid: string) => [
-  { id: `${pid}-bacon`, name: 'Bacon crocante', priceCents: 400 },
-  { id: `${pid}-cheddar`, name: 'Cheddar extra', priceCents: 300 },
-  { id: `${pid}-egg`, name: 'Ovo', priceCents: 250 },
-  { id: `${pid}-patty`, name: 'Hambúrguer extra', priceCents: 700 },
+  { id: `${pid}-bacon`, name: 'Bacon crocante', nameEn: 'Crispy bacon', priceCents: 400 },
+  { id: `${pid}-cheddar`, name: 'Cheddar extra', nameEn: 'Extra cheddar', priceCents: 300 },
+  { id: `${pid}-egg`, name: 'Ovo', nameEn: 'Egg', priceCents: 250 },
+  { id: `${pid}-patty`, name: 'Hambúrguer extra', nameEn: 'Extra patty', priceCents: 700 },
 ]
+
+// Tradução do cardápio de exemplo para o totem em inglês (o admin edita estes textos pela tela de cardápio).
+const categoriesEn: Record<string, string> = {
+  burgers: 'Burgers',
+  combos: 'Combos',
+  sides: 'Sides',
+  drinks: 'Drinks',
+  desserts: 'Desserts',
+}
+const productsEn: Record<string, { name: string; description: string }> = {
+  classic: { name: 'Classic', description: '150g patty, cheese, lettuce, tomato and house mayo.' },
+  bacon: { name: 'Bacon Smash', description: 'Two smash patties, cheddar, bacon and barbecue sauce.' },
+  chicken: { name: 'Crispy Chicken', description: 'Breaded chicken, iceberg lettuce and ranch sauce.' },
+  veggie: { name: 'Veggie', description: 'Chickpea patty, arugula and herb mayo.' },
+  'combo-classic': { name: 'Classic Combo', description: 'Classic + medium fries + 500ml soda.' },
+  'combo-bacon': { name: 'Bacon Smash Combo', description: 'Bacon Smash + medium fries + 500ml soda.' },
+  fries: { name: 'French Fries', description: 'Medium portion, crispy and dry.' },
+  onion: { name: 'Onion Rings', description: '8 breaded onion rings.' },
+  nuggets: { name: 'Nuggets (10)', description: 'With your choice of sauce.' },
+  cola: { name: 'Soda 500ml', description: 'Cola, guarana or lemon.' },
+  juice: { name: 'Fresh Juice', description: 'Orange or passion fruit, 400ml.' },
+  shake: { name: 'Milkshake', description: 'Chocolate, strawberry or vanilla.' },
+  sundae: { name: 'Sundae', description: 'Vanilla ice cream with your choice of syrup.' },
+  brownie: { name: 'Brownie', description: 'Warm brownie with ice cream.' },
+}
 
 const products = [
   { id: 'classic', name: 'Clássico', description: 'Blend 150g, queijo prato, alface, tomate e maionese da casa.', priceCents: 2490, categoryId: 'burgers', emoji: '🍔', stock: 50, extras: true, removable: ['Alface', 'Tomate', 'Cebola', 'Maionese'] },
@@ -86,12 +111,15 @@ async function main() {
     }
   }
   for (const c of categories) {
-    await prisma.category.upsert({ where: { id: c.id }, update: c, create: c })
+    const data = { ...c, labelEn: categoriesEn[c.id] ?? null }
+    await prisma.category.upsert({ where: { id: c.id }, update: data, create: data })
   }
   for (const { extras, ...p } of products) {
     // Em re-execuções não sobrescreve o estoque atual.
     const { stock: _stock, ...rest } = p
-    await prisma.product.upsert({ where: { id: p.id }, update: rest, create: p })
+    const en = productsEn[p.id]
+    const translation = { nameEn: en?.name ?? null, descriptionEn: en?.description ?? null }
+    await prisma.product.upsert({ where: { id: p.id }, update: { ...rest, ...translation }, create: { ...p, ...translation } })
     if (extras) {
       for (const e of burgerExtras(p.id)) {
         await prisma.extra.upsert({ where: { id: e.id }, update: e, create: { ...e, productId: p.id } })

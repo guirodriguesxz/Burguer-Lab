@@ -10,6 +10,7 @@ import {
   validateCoupon,
 } from '../lib/api'
 import { brl, lineTotal } from '../lib/format'
+import { friendlyError, pick, useI18n } from '../lib/i18n'
 import { enqueueOrder, newClientRef } from '../lib/offline'
 import type { CartItem, CouponPreview, Mode, Order, PayMethod } from '../lib/types'
 
@@ -47,6 +48,7 @@ const mmss = (ms: number) => {
 }
 
 export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) {
+  const { t, lang } = useI18n()
   const [method, setMethod] = useState<PayMethod | null>(null)
   const [phase, setPhase] = useState<Phase>('choose')
   const [error, setError] = useState<string | null>(null)
@@ -69,7 +71,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     onPaid({
       ...t,
       print: {
-        lines: cart.map((i) => ({ qty: i.qty, name: i.product.name, extras: i.extras.map((e) => e.name), removed: i.removed })),
+        lines: cart.map((i) => ({ qty: i.qty, name: pick(lang, i.product.name, i.product.nameEn), extras: i.extras.map((e) => pick(lang, e.name, e.nameEn)), removed: i.removed })),
         totalCents: total,
         method,
         mode,
@@ -84,10 +86,11 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
       if (r.valid) setCoupon(r)
       else {
         setCoupon(null)
-        setCouponError(r.reason ?? 'Cupom inválido')
+        const key = r.code === 'EXPIRED' ? 'pay.couponExpired' : r.code === 'EXHAUSTED' ? 'pay.couponExhausted' : r.code === 'MIN_ORDER' ? 'pay.couponMin' : 'pay.couponInvalid'
+        setCouponError(t(key, { min: brl(r.minOrderCents ?? 0) }))
       }
     } catch {
-      setCouponError('Não foi possível validar o cupom agora')
+      setCouponError(t('pay.couponError'))
     }
   }
 
@@ -114,7 +117,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     } catch (e) {
       if (isNetworkError(e)) return queueOffline()
       setPhase('choose')
-      setError(e instanceof Error ? e.message : 'Falha ao finalizar o pedido')
+      setError(friendlyError(e, lang, t, t('pay.failed')))
     }
   }
 
@@ -136,7 +139,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     } catch (e) {
       if (isNetworkError(e)) return queueOffline()
       setPhase('choose')
-      setError(e instanceof Error ? e.message : 'Falha ao finalizar o pedido')
+      setError(friendlyError(e, lang, t, t('pay.failed')))
     }
   }
 
@@ -150,7 +153,7 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
       setPhase('pix')
     } catch (e) {
       setPhase('choose')
-      setError(e instanceof ApiError ? e.message : 'Sem conexão. Tente o cartão ou chame um atendente.')
+      setError(e instanceof ApiError ? friendlyError(e, lang, t, t('pay.noConnectionPix')) : t('pay.noConnectionPix'))
     }
   }
 
@@ -177,28 +180,28 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
 
   return (
     <main className="checkout">
-      <h1>Pagamento</h1>
-      <p className="muted">{mode === 'DINE_IN' ? 'Para comer aqui' : 'Para levar'}</p>
+      <h1>{t('pay.title')}</h1>
+      <p className="muted">{mode === 'DINE_IN' ? t('pay.dineIn') : t('pay.takeaway')}</p>
 
       {phase === 'choose' && (
         <>
           <div className="coupon">
             {coupon?.valid ? (
               <p className="coupon-ok">
-                ✓ Cupom <strong>{coupon.code}</strong> aplicado: −{brl(discount)}{' '}
-                <button className="link" onClick={() => (setCoupon(null), setCouponInput(''))}>remover</button>
+                ✓ {t('pay.couponApplied', { code: coupon.code ?? '', amount: brl(discount) })}{' '}
+                <button className="link" onClick={() => (setCoupon(null), setCouponInput(''))}>{t('pay.remove')}</button>
               </p>
             ) : (
               <>
                 <input
-                  aria-label="Cupom de desconto"
-                  placeholder="Cupom de desconto"
+                  aria-label={t('pay.couponLabel')}
+                  placeholder={t('pay.couponLabel')}
                   value={couponInput}
                   disabled={!online}
                   onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
                 />
                 <button className="btn-ghost small" disabled={!online || !couponInput.trim()} onClick={applyCoupon}>
-                  Aplicar
+                  {t('pay.apply')}
                 </button>
               </>
             )}
@@ -206,48 +209,48 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
           </div>
 
           <p className="totals">
-            {discount > 0 && <span className="muted">Subtotal {brl(subtotal)} · </span>}
-            Total <strong>{brl(total)}</strong>
+            {discount > 0 && <span className="muted">{t('pay.subtotal', { x: brl(subtotal) })} · </span>}
+            {t('pay.totalLabel')} <strong>{brl(total)}</strong>
           </p>
 
           <div className="pay-options">
             <button className={method === 'PIX' ? 'pay on' : 'pay'} disabled={!online} onClick={() => setMethod('PIX')}>
-              <span>⚡</span> Pix
-              {!online && <small>Indisponível sem internet</small>}
+              <span>⚡</span> {t('pay.pix')}
+              {!online && <small>{t('pay.offline')}</small>}
             </button>
             <button className={method === 'CARD' ? 'pay on' : 'pay'} onClick={() => setMethod('CARD')}>
-              <span>💳</span> Cartão
+              <span>💳</span> {t('pay.card')}
             </button>
             <button className={method === 'CASH' ? 'pay on' : 'pay'} onClick={() => setMethod('CASH')}>
-              <span>💵</span> No caixa
+              <span>💵</span> {t('pay.cash')}
             </button>
           </div>
 
           {method === 'CARD' && (
             <div className="pay-instruction">
               <p className="big-emoji">💳</p>
-              <p>Aproxime ou insira o cartão na maquininha.</p>
-              {!online && <p className="muted">Sem internet: seu pedido será enviado assim que a conexão voltar.</p>}
+              <p>{t('pay.cardHint')}</p>
+              {!online && <p className="muted">{t('pay.cardOffline')}</p>}
             </div>
           )}
           {method === 'CASH' && (
             <div className="pay-instruction">
               <p className="big-emoji">💵</p>
-              <p>Você recebe uma senha e paga ao atendente no caixa. O pedido vai para a cozinha depois do pagamento.</p>
+              <p>{t('pay.cashHint')}</p>
             </div>
           )}
           {error && <p role="alert" className="error">{error}</p>}
 
           <div className="checkout-actions">
-            <button className="btn-ghost" onClick={onBack}>Voltar ao cardápio</button>
+            <button className="btn-ghost" onClick={onBack}>{t('pay.back')}</button>
             <button className="btn-primary" disabled={!method} onClick={method === 'PIX' ? payPix : method === 'CASH' ? payCash : payCard}>
               {method === 'PIX'
-                ? 'Gerar QR Code Pix'
+                ? t('pay.btn.pix')
                 : method === 'CARD'
-                  ? 'Simular pagamento no cartão'
+                  ? t('pay.btn.card')
                   : method === 'CASH'
-                    ? 'Gerar senha e pagar no caixa'
-                    : 'Escolha a forma de pagamento'}
+                    ? t('pay.btn.cash')
+                    : t('pay.btn.choose')}
             </button>
           </div>
         </>
@@ -256,33 +259,31 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
       {phase === 'processing' && (
         <div className="pay-instruction" role="status">
           <div className="spinner" />
-          <p>Processando…</p>
+          <p>{t('pay.processing')}</p>
         </div>
       )}
 
       {phase === 'pix' && pixOrder && (
         <div className="pay-instruction" role="status">
-          {qr && <img className="qr-img" src={qr} alt="QR Code Pix para pagamento" />}
-          <p>
-            Escaneie com o app do seu banco · <strong>{brl(pixOrder.totalCents)}</strong>
-          </p>
-          <p className="muted">Expira em {mmss(expiresAt - now)} · aguardando pagamento…</p>
+          {qr && <img className="qr-img" src={qr} alt={t('pay.pixQrAlt')} />}
+          <p>{t('pay.pixScan', { amount: brl(pixOrder.totalCents) })}</p>
+          <p className="muted">{t('pay.pixExpires', { time: mmss(expiresAt - now) })}</p>
           {import.meta.env.DEV && pixOrder.payment?.txid && (
             <button className="btn-ghost small" onClick={() => simulatePixPayment(pixOrder.payment!.txid!)}>
               [dev] Simular pagamento no app do banco
             </button>
           )}
-          <button className="btn-ghost" onClick={onBack}>Cancelar</button>
+          <button className="btn-ghost" onClick={onBack}>{t('pay.cancel')}</button>
         </div>
       )}
 
       {phase === 'expired' && (
         <div className="pay-instruction" role="alert">
           <p className="big-emoji">⏰</p>
-          <p>O QR Code expirou e o pedido foi cancelado.</p>
+          <p>{t('pay.expired')}</p>
           <div className="checkout-actions">
-            <button className="btn-ghost" onClick={onBack}>Voltar ao cardápio</button>
-            <button className="btn-primary" onClick={() => (setPhase('choose'), setPixOrder(null), setQr(null))}>Tentar de novo</button>
+            <button className="btn-ghost" onClick={onBack}>{t('pay.back')}</button>
+            <button className="btn-primary" onClick={() => (setPhase('choose'), setPixOrder(null), setQr(null))}>{t('pay.tryAgain')}</button>
           </div>
         </div>
       )}

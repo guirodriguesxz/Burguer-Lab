@@ -39,7 +39,9 @@ export class MenuController {
       const best = candidates
         .filter((p) => p.categoryId === w.category)
         .sort((a, b) => (sales.get(b.id) ?? 0) - (sales.get(a.id) ?? 0) || a.priceCents - b.priceCents)[0]
-      return best ? [{ reason: w.reason, product: { id: best.id, name: best.name, emoji: best.emoji, priceCents: best.priceCents } }] : []
+      return best
+        ? [{ kind: w.category, reason: w.reason, product: { id: best.id, name: best.name, nameEn: best.nameEn, emoji: best.emoji, priceCents: best.priceCents } }]
+        : []
     })
   }
 
@@ -57,6 +59,8 @@ export class MenuController {
         id: p.id,
         name: p.name,
         description: p.description,
+        nameEn: p.nameEn,
+        descriptionEn: p.descriptionEn,
         priceCents: p.priceCents,
         emoji: p.emoji,
         category: p.categoryId,

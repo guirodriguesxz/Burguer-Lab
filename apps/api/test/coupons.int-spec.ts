@@ -36,7 +36,7 @@ describe('cupons e upsell (integração)', () => {
 
   it('explica por que um cupom não vale', async () => {
     const small = [{ productId: 'fries', qty: 1 }]
-    expect((await validate('NAOEXISTE', small)).body).toEqual({ valid: false, reason: 'Cupom inválido' })
+    expect((await validate('NAOEXISTE', small)).body).toEqual({ valid: false, reason: 'Cupom inválido', code: 'INVALID' })
     expect((await validate('FIXED5', small)).body.reason).toMatch(/mínimo/)
     await prisma.coupon.update({ where: { code: 'PCT10' }, data: { expiresAt: new Date('2020-01-01') } })
     expect((await validate('PCT10', small)).body.reason).toBe('Cupom expirado')

@@ -70,6 +70,8 @@ model DailyCounter {
 model Category {
   id       String    @id
   label    String
+  /// Tradução para o totem em inglês (opcional; sem ela o totem mostra o texto em português).
+  labelEn  String?
   emoji    String
   position Int       @default(0)
   products Product[]
@@ -79,6 +81,8 @@ model Product {
   id          String   @id
   name        String
   description String
+  nameEn        String?
+  descriptionEn String?
   priceCents  Int
   emoji       String
   available   Boolean  @default(true)
@@ -95,6 +99,7 @@ model Product {
 model Extra {
   id         String  @id
   name       String
+  nameEn     String?
   priceCents Int
   productId  String
   product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)

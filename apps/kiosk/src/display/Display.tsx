@@ -83,16 +83,16 @@ export default function Display() {
         )}
       </header>
       <div className="display-cols">
-        <section aria-label="Em preparo">
-          <h2>Em preparo</h2>
+        <section aria-label="Em preparo / Preparing">
+          <h2>Em preparo <small>Preparing</small></h2>
           <ul>
             {queue.preparing.map((t) => (
               <li key={t}>{t}</li>
             ))}
           </ul>
         </section>
-        <section className="ready" aria-label="Pronto para retirar">
-          <h2>Pronto, retire no balcão</h2>
+        <section className="ready" aria-label="Pronto para retirar / Ready for pickup">
+          <h2>Pronto, retire no balcão <small>Ready for pickup</small></h2>
           <ul>
             {queue.ready.map((t) => (
               <li key={t} className={flash.includes(t) ? 'flash' : ''}>

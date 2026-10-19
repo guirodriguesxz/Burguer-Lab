@@ -25,8 +25,8 @@ describe('evaluateCoupon', () => {
   it('rejeita cupom inexistente, inativo, expirado ou esgotado', () => {
     expect(evaluateCoupon(null, 1000).ok).toBe(false)
     expect(evaluateCoupon({ ...base, active: false }, 1000).ok).toBe(false)
-    expect(evaluateCoupon({ ...base, expiresAt: new Date('2020-01-01') }, 1000)).toEqual({ ok: false, reason: 'Cupom expirado' })
-    expect(evaluateCoupon({ ...base, maxUses: 5, usedCount: 5 }, 1000)).toEqual({ ok: false, reason: 'Cupom esgotado' })
+    expect(evaluateCoupon({ ...base, expiresAt: new Date('2020-01-01') }, 1000)).toEqual({ ok: false, reason: 'Cupom expirado', code: 'EXPIRED' })
+    expect(evaluateCoupon({ ...base, maxUses: 5, usedCount: 5 }, 1000)).toEqual({ ok: false, reason: 'Cupom esgotado', code: 'EXHAUSTED' })
   })
 
   it('exige pedido mínimo', () => {

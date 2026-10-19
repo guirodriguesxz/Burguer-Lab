@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { brl } from '../lib/format'
+import { pick, useI18n } from '../lib/i18n'
+import { useDialog } from '../lib/useDialog'
 import type { CartItem, Extra, Product } from '../lib/types'
 
 interface Props {
@@ -13,30 +15,32 @@ function toggle(list: string[], v: string) {
 }
 
 export default function Customize({ product, onClose, onConfirm }: Props) {
+  const { t, lang } = useI18n()
   const [extras, setExtras] = useState<Extra[]>([])
   const [removed, setRemoved] = useState<string[]>([])
   const [qty, setQty] = useState(1)
 
+  const ref = useDialog<HTMLDivElement>(onClose)
   const unit = product.priceCents + extras.reduce((s, e) => s + e.priceCents, 0)
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-label={`Personalizar ${product.name}`}>
-      <div className="modal">
+    <div className="overlay" role="dialog" aria-modal="true" aria-label={t('custom.title', { name: pick(lang, product.name, product.nameEn) })}>
+      <div className="modal" ref={ref} tabIndex={-1}>
         <header>
           <span className="product-emoji">{product.emoji}</span>
           <div>
-            <h2>{product.name}</h2>
-            <p className="muted">{product.description}</p>
+            <h2>{pick(lang, product.name, product.nameEn)}</h2>
+            <p className="muted">{pick(lang, product.description, product.descriptionEn)}</p>
           </div>
         </header>
 
         {product.removable.length > 0 && (
           <>
-            <h3>Remover ingredientes</h3>
+            <h3>{t('custom.remove')}</h3>
             <div className="chips">
               {product.removable.map((r) => (
                 <button key={r} className={removed.includes(r) ? 'chip on' : 'chip'} onClick={() => setRemoved(toggle(removed, r))}>
-                  Sem {r}
+                  {t('custom.without', { x: r })}
                 </button>
               ))}
             </div>
@@ -45,7 +49,7 @@ export default function Customize({ product, onClose, onConfirm }: Props) {
 
         {product.extras.length > 0 && (
           <>
-            <h3>Adicionais</h3>
+            <h3>{t('custom.extras')}</h3>
             <div className="chips">
               {product.extras.map((e) => {
                 const on = extras.some((x) => x.id === e.id)
@@ -55,7 +59,7 @@ export default function Customize({ product, onClose, onConfirm }: Props) {
                     className={on ? 'chip on' : 'chip'}
                     onClick={() => setExtras(on ? extras.filter((x) => x.id !== e.id) : [...extras, e])}
                   >
-                    {e.name} <small>+{brl(e.priceCents)}</small>
+                    {pick(lang, e.name, e.nameEn)} <small>+{brl(e.priceCents)}</small>
                   </button>
                 )
               })}
@@ -65,16 +69,16 @@ export default function Customize({ product, onClose, onConfirm }: Props) {
 
         <footer>
           <div className="stepper big">
-            <button aria-label="Diminuir" onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
+            <button aria-label={t('menu.decrease')} onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
             <span>{qty}</span>
-            <button aria-label="Aumentar" onClick={() => setQty(qty + 1)}>+</button>
+            <button aria-label={t('menu.increase')} onClick={() => setQty(qty + 1)}>+</button>
           </div>
-          <button className="btn-ghost" onClick={onClose}>Voltar</button>
+          <button className="btn-ghost" onClick={onClose}>{t('custom.back')}</button>
           <button
             className="btn-primary"
             onClick={() => onConfirm({ uid: crypto.randomUUID(), product, qty, extras, removed })}
           >
-            Adicionar · {brl(unit * qty)}
+            {t('custom.add', { price: brl(unit * qty) })}
           </button>
         </footer>
       </div>

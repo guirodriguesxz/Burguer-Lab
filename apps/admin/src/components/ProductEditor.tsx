@@ -14,6 +14,7 @@ import {
   type AdminExtra,
   type AdminProduct,
 } from '../lib/api'
+import { useDialog } from '../lib/useDialog'
 
 interface Props {
   /** null = novo produto */
@@ -29,6 +30,8 @@ const message = (e: unknown) => (e instanceof Error ? e.message : 'Algo deu erra
 export default function ProductEditor({ product, onClose, onSaved, onArchived }: Props) {
   const [categories, setCategories] = useState<AdminCategory[]>([])
   const [name, setName] = useState(product?.name ?? '')
+  const [nameEn, setNameEn] = useState(product?.nameEn ?? '')
+  const [descriptionEn, setDescriptionEn] = useState(product?.descriptionEn ?? '')
   const [emoji, setEmoji] = useState(product?.emoji ?? '🍔')
   const [description, setDescription] = useState(product?.description ?? '')
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? '')
@@ -43,6 +46,7 @@ export default function ProductEditor({ product, onClose, onSaved, onArchived }:
   const [saved, setSaved] = useState<AdminProduct | null>(product)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const ref = useDialog<HTMLDivElement>(onClose)
 
   useEffect(() => {
     fetchCategories()
@@ -79,6 +83,8 @@ export default function ProductEditor({ product, onClose, onSaved, onArchived }:
         name,
         emoji,
         description,
+        nameEn,
+        descriptionEn,
         categoryId,
         priceCents,
         stock: stock.trim() === '' ? null : parseInt(stock, 10),
@@ -137,7 +143,7 @@ export default function ProductEditor({ product, onClose, onSaved, onArchived }:
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label={product ? `Editar ${product.name}` : 'Novo produto'}>
-      <div className="dialog editor">
+      <div className="dialog editor" ref={ref} tabIndex={-1}>
         <h2>{product ? 'Editar produto' : saved ? 'Produto criado' : 'Novo produto'}</h2>
 
         <form onSubmit={save} className="editor-form">
@@ -152,6 +158,15 @@ export default function ProductEditor({ product, onClose, onSaved, onArchived }:
           <div className="field wide">
             <label htmlFor="p-desc">Descrição</label>
             <input id="p-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} />
+          </div>
+
+          <div className="field">
+            <label htmlFor="p-name-en">Nome em inglês (opcional)</label>
+            <input id="p-name-en" value={nameEn} onChange={(e) => setNameEn(e.target.value)} maxLength={60} />
+          </div>
+          <div className="field wide">
+            <label htmlFor="p-desc-en">Descrição em inglês (opcional)</label>
+            <input id="p-desc-en" value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} maxLength={200} />
           </div>
 
           <div className="field">

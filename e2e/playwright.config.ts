@@ -16,8 +16,9 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
-    // Usa o Chrome já instalado (no GitHub Actions ele vem nas imagens), sem baixar navegadores.
-    channel: 'chrome',
+    // Usa um navegador já instalado (no GitHub Actions o Chrome vem nas imagens), sem baixar nada.
+    // Localmente dá para trocar: E2E_CHANNEL=msedge (o Edge já vem no Windows).
+    channel: process.env.E2E_CHANNEL ?? 'chrome',
     locale: 'pt-BR',
     serviceWorkers: 'allow',
     trace: 'retain-on-failure',
