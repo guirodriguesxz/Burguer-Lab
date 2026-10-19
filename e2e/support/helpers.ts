@@ -6,6 +6,7 @@ import { E2E_DB } from '../playwright.config'
 export const CREDS = {
   admin: { email: 'admin@burgerlab.dev', password: 'admin123' },
   kitchen: { email: 'cozinha@burgerlab.dev', password: 'cozinha123' },
+  cashier: { email: 'caixa@burgerlab.dev', password: 'caixa123' },
 }
 
 /** Zera pedidos e restaura cupons/produtos entre testes (o cardápio do seed é mantido). */

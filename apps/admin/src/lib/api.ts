@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'KITCHEN'
+export type Role = 'ADMIN' | 'KITCHEN' | 'CASHIER'
 export interface Session {
   token: string
   user: { id: string; name: string; email: string; role: Role }
@@ -17,6 +17,11 @@ export interface Order {
   /** Presente em pedidos feitos offline no totem; identifica o pedido no balcão. */
   clientRef: string | null
   createdAt: string
+  payment: {
+    method: 'PIX' | 'CARD' | 'CASH'
+    status: 'PENDING' | 'PAID' | 'EXPIRED' | 'REFUNDED' | 'REFUND_FAILED'
+    expiresAt: string | null
+  } | null
   items: {
     id: string
     productName: string
@@ -124,6 +129,11 @@ export const resetPassword = (token: string, password: string) =>
 
 // Pedidos entregues saem da tela da cozinha, então nem são buscados.
 export const fetchOrders = (token: string) => request<Order[]>('/orders?status=PAID,PREPARING,READY', {}, token)
+
+export const fetchPendingCash = (token: string) => request<Order[]>('/orders?status=CREATED', {}, token)
+
+export const confirmCash = (token: string, id: string) =>
+  request<Order>(`/orders/${id}/confirm-cash`, { method: 'POST' }, token)
 
 export const updateOrderStatus = (token: string, id: string, status: OrderStatus) =>
   request<Order>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, token)

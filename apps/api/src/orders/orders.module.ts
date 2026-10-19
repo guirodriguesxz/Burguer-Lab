@@ -8,6 +8,6 @@ import { PricingService } from './pricing.service'
   imports: [PaymentsModule],
   controllers: [OrdersController],
   providers: [OrdersService, PricingService],
-  exports: [PricingService],
+  exports: [PricingService, OrdersService],
 })
 export class OrdersModule {}

@@ -98,3 +98,14 @@ select { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px;
   .kgrid, .panels { grid-template-columns: 1fr; }
   td input { width: 80px; }
 }
+
+/* Caixa */
+.cash-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-top: 12px; }
+.cash-card { display: flex; flex-direction: column; gap: 10px; }
+.cash-card header, .cash-card footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cash-card header { justify-content: space-between; }
+.cash-number { font-size: 1.8rem; }
+.cash-card ul { padding-left: 18px; }
+.cash-card footer { justify-content: flex-end; }
+.cash-total { margin-right: auto; font-size: 1.3rem; }
+.ghost { background: transparent; border: 2px solid var(--line); border-radius: 12px; padding: 10px 14px; font-weight: 600; color: var(--muted); }

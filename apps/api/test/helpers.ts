@@ -46,6 +46,7 @@ export async function resetDb(prisma: PrismaClient) {
     data: [
       { email: 'admin@test.dev', name: 'Admin', role: 'ADMIN', passwordHash: await bcrypt.hash('admin-pass', 4) },
       { email: 'kitchen@test.dev', name: 'Cozinha', role: 'KITCHEN', passwordHash: await bcrypt.hash('kitchen-pass', 4) },
+      { email: 'cashier@test.dev', name: 'Caixa', role: 'CASHIER', passwordHash: await bcrypt.hash('cashier-pass', 4) },
     ],
   })
   await prisma.coupon.createMany({
@@ -57,8 +58,14 @@ export async function resetDb(prisma: PrismaClient) {
   })
 }
 
-export async function loginAs(app: NestExpressApplication, who: 'admin' | 'kitchen') {
-  const creds = who === 'admin' ? { email: 'admin@test.dev', password: 'admin-pass' } : { email: 'kitchen@test.dev', password: 'kitchen-pass' }
+const CREDS = {
+  admin: { email: 'admin@test.dev', password: 'admin-pass' },
+  kitchen: { email: 'kitchen@test.dev', password: 'kitchen-pass' },
+  cashier: { email: 'cashier@test.dev', password: 'cashier-pass' },
+}
+
+export async function loginAs(app: NestExpressApplication, who: keyof typeof CREDS) {
+  const creds = CREDS[who]
   const res = await request(app.getHttpServer()).post('/api/auth/login').send(creds).expect(201)
   return res.body.token as string
 }

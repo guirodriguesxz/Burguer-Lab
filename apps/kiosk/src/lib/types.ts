@@ -34,7 +34,7 @@ export interface CartItem {
 
 export type OrderStatus = 'CREATED' | 'PAID' | 'PREPARING' | 'READY' | 'DELIVERED' | 'CANCELED'
 export type Mode = 'DINE_IN' | 'TAKEAWAY'
-export type PayMethod = 'PIX' | 'CARD'
+export type PayMethod = 'PIX' | 'CARD' | 'CASH'
 
 export interface OrderItem {
   id: string

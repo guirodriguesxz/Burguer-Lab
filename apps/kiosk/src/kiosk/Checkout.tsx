@@ -17,6 +17,8 @@ export interface Ticket {
   number: number | null
   clientRef: string | null
   offline: boolean
+  /** Pedido para pagar no caixa: ainda não foi pago nem vai para a cozinha. */
+  cash?: boolean
 }
 
 interface Props {
@@ -87,6 +89,28 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
     try {
       const [order] = await Promise.all([createOrder(cart, mode, 'CARD', key, couponCode), wait])
       onPaid({ number: order.number, clientRef: null, offline: false })
+    } catch (e) {
+      if (isNetworkError(e)) return queueOffline()
+      setPhase('choose')
+      setError(e instanceof Error ? e.message : 'Falha ao finalizar o pedido')
+    }
+  }
+
+  // Pagamento no caixa: o pedido é registrado agora e o cliente paga ao atendente. Funciona também sem
+  // internet (o pedido entra na fila e é enviado depois, como o do cartão).
+  const payCash = async () => {
+    setPhase('processing')
+    setError(null)
+    const key = crypto.randomUUID()
+    const payload = { mode, method: 'CASH' as const, couponCode, clientRef: clientRef.current, items: toItems(cart) }
+    const queueOffline = () => {
+      enqueueOrder(payload, key)
+      onPaid({ number: null, clientRef: clientRef.current, offline: true, cash: true })
+    }
+    if (!online) return queueOffline()
+    try {
+      const order = await createOrder(cart, mode, 'CASH', key, couponCode)
+      onPaid({ number: order.number, clientRef: null, offline: false, cash: true })
     } catch (e) {
       if (isNetworkError(e)) return queueOffline()
       setPhase('choose')
@@ -172,6 +196,9 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
             <button className={method === 'CARD' ? 'pay on' : 'pay'} onClick={() => setMethod('CARD')}>
               <span>💳</span> Cartão
             </button>
+            <button className={method === 'CASH' ? 'pay on' : 'pay'} onClick={() => setMethod('CASH')}>
+              <span>💵</span> No caixa
+            </button>
           </div>
 
           {method === 'CARD' && (
@@ -181,12 +208,24 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
               {!online && <p className="muted">Sem internet: seu pedido será enviado assim que a conexão voltar.</p>}
             </div>
           )}
+          {method === 'CASH' && (
+            <div className="pay-instruction">
+              <p className="big-emoji">💵</p>
+              <p>Você recebe uma senha e paga ao atendente no caixa. O pedido vai para a cozinha depois do pagamento.</p>
+            </div>
+          )}
           {error && <p role="alert" className="error">{error}</p>}
 
           <div className="checkout-actions">
             <button className="btn-ghost" onClick={onBack}>Voltar ao cardápio</button>
-            <button className="btn-primary" disabled={!method} onClick={method === 'PIX' ? payPix : payCard}>
-              {method === 'PIX' ? 'Gerar QR Code Pix' : method === 'CARD' ? 'Simular pagamento no cartão' : 'Escolha a forma de pagamento'}
+            <button className="btn-primary" disabled={!method} onClick={method === 'PIX' ? payPix : method === 'CASH' ? payCash : payCard}>
+              {method === 'PIX'
+                ? 'Gerar QR Code Pix'
+                : method === 'CARD'
+                  ? 'Simular pagamento no cartão'
+                  : method === 'CASH'
+                    ? 'Gerar senha e pagar no caixa'
+                    : 'Escolha a forma de pagamento'}
             </button>
           </div>
         </>

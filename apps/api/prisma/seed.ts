@@ -51,16 +51,20 @@ function buildUsers() {
     return [
       { email: 'admin@burgerlab.dev', name: 'Admin', password: 'admin123', role: 'ADMIN' as const },
       { email: 'cozinha@burgerlab.dev', name: 'Cozinha', password: 'cozinha123', role: 'KITCHEN' as const },
+      { email: 'caixa@burgerlab.dev', name: 'Caixa', password: 'caixa123', role: 'CASHIER' as const },
     ]
   }
-  const { ADMIN_EMAIL, ADMIN_PASSWORD, KITCHEN_EMAIL, KITCHEN_PASSWORD } = process.env
+  const { ADMIN_EMAIL, ADMIN_PASSWORD, KITCHEN_EMAIL, KITCHEN_PASSWORD, CASHIER_EMAIL, CASHIER_PASSWORD } = process.env
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) throw new Error('Defina ADMIN_EMAIL e ADMIN_PASSWORD para o seed de produção')
   if (ADMIN_PASSWORD.length < 12) throw new Error('ADMIN_PASSWORD deve ter ao menos 12 caracteres')
-  const list: { email: string; name: string; password: string; role: 'ADMIN' | 'KITCHEN' }[] = [
+  const list: { email: string; name: string; password: string; role: 'ADMIN' | 'KITCHEN' | 'CASHIER' }[] = [
     { email: ADMIN_EMAIL, name: 'Admin', password: ADMIN_PASSWORD, role: 'ADMIN' },
   ]
   if (KITCHEN_EMAIL && KITCHEN_PASSWORD) {
     list.push({ email: KITCHEN_EMAIL, name: 'Cozinha', password: KITCHEN_PASSWORD, role: 'KITCHEN' as const })
+  }
+  if (CASHIER_EMAIL && CASHIER_PASSWORD) {
+    list.push({ email: CASHIER_EMAIL, name: 'Caixa', password: CASHIER_PASSWORD, role: 'CASHIER' })
   }
   return list
 }

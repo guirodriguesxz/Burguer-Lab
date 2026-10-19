@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { OrderStatus } from '@prisma/client'
 import { evaluateCoupon, normalizeCode } from '../coupons/coupon-rules'
+import { PaymentsService } from '../payments/payments.service'
 import { PixProvider } from '../payments/pix.provider'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
@@ -19,12 +20,15 @@ export class OrdersService {
     private readonly realtime: RealtimeGateway,
     private readonly pricing: PricingService,
     private readonly pix: PixProvider,
+    private readonly payments: PaymentsService,
   ) {}
 
   /**
    * Cria o pedido. Preço, desconto e estoque são resolvidos no servidor, na mesma transação.
    * - Cartão: nasce PAID e vai direto para a cozinha.
    * - Pix: nasce CREATED com cobrança PENDING; só vai para a cozinha quando o webhook confirmar.
+   * - Caixa (dinheiro): nasce CREATED com pagamento PENDING; vai para a cozinha quando o caixa confirmar o
+   *   recebimento. Se ninguém pagar a tempo, expira como o Pix.
    */
   async create(dto: CreateOrderDto, idempotencyKey?: string) {
     if (idempotencyKey) {
@@ -67,10 +71,19 @@ export class OrdersService {
       }
 
       const totalCents = subtotalCents - discountCents
-      const isPix = dto.method === 'PIX'
+      const isDeferred = dto.method !== 'CARD'
 
       let payment
-      if (isPix) {
+      if (dto.method === 'CASH') {
+        const ttl = Number(process.env.CASH_TTL_SECONDS ?? 900)
+        payment = {
+          method: 'CASH' as const,
+          amountCents: totalCents,
+          status: 'PENDING' as const,
+          expiresAt: new Date(Date.now() + ttl * 1000),
+          idempotencyKey,
+        }
+      } else if (dto.method === 'PIX') {
         const txid = randomUUID().replace(/-/g, '')
         const charge = await this.pix.createCharge({ txid, amountCents: totalCents })
         payment = {
@@ -93,10 +106,10 @@ export class OrdersService {
           discountCents,
           couponCode,
           clientRef: dto.clientRef,
-          status: isPix ? 'CREATED' : 'PAID',
+          status: isDeferred ? 'CREATED' : 'PAID',
           items: { create: lines },
           payment: { create: payment },
-          history: { create: isPix ? [{ to: 'CREATED' }] : [{ to: 'CREATED' }, { from: 'CREATED', to: 'PAID' }] },
+          history: { create: isDeferred ? [{ to: 'CREATED' }] : [{ to: 'CREATED' }, { from: 'CREATED', to: 'PAID' }] },
         },
         include,
       })
@@ -104,6 +117,7 @@ export class OrdersService {
 
     // Notifica depois do commit.
     if (order.status === 'PAID') this.realtime.orderCreated(order)
+    else if (dto.method === 'CASH') this.realtime.orderPending(order) // o caixa vê o novo pedido na hora
     this.realtime.menuChanged()
     return order
   }
@@ -132,9 +146,15 @@ export class OrdersService {
     }
   }
 
-  async transition(id: string, to: OrderStatus) {
-    const order = await this.prisma.order.findUnique({ where: { id }, include: { items: true } })
+  /**
+   * @param onlyPending o caixa só pode cancelar pedidos que ainda aguardam pagamento (CREATED)
+   */
+  async transition(id: string, to: OrderStatus, opts: { onlyPending?: boolean } = {}) {
+    const order = await this.prisma.order.findUnique({ where: { id }, include: { items: true, payment: true } })
     if (!order) throw new NotFoundException('Pedido não encontrado')
+    if (opts.onlyPending && order.status !== 'CREATED') {
+      throw new ForbiddenException('O caixa só pode cancelar pedidos que aguardam pagamento')
+    }
     if (!canTransition(order.status, to)) {
       throw new ConflictException(`Transição inválida: ${order.status} → ${to}`)
     }
@@ -153,8 +173,15 @@ export class OrdersService {
       return tx.order.findUniqueOrThrow({ where: { id }, include })
     })
 
-    this.realtime.orderUpdated(updated)
+    // Cancelar um pedido já pago devolve o dinheiro (estorno). Fora da transação: pode falar com o provedor.
+    let result = updated
+    if (to === 'CANCELED' && order.payment?.status === 'PAID') {
+      await this.payments.refundPayment(id)
+      result = await this.prisma.order.findUniqueOrThrow({ where: { id }, include })
+    }
+
+    this.realtime.orderUpdated(result)
     if (to === 'CANCELED') this.realtime.menuChanged()
-    return updated
+    return result
   }
 }

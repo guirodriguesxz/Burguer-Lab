@@ -20,8 +20,13 @@ test('RBAC: a cozinha só vê a cozinha; o admin vê tudo', async ({ browser }) 
   await expect(kitchen.page.getByRole('button', { name: /Relatórios/ })).toHaveCount(0)
   await kitchen.context.close()
 
+  const cashier = await openStaff(browser, 'cashier')
+  await expect(cashier.page.getByRole('button', { name: /Caixa/ })).toBeVisible()
+  for (const tab of [/Cozinha/, /Cardápio/, /Cupons/, /Relatórios/]) await expect(cashier.page.getByRole('button', { name: tab })).toHaveCount(0)
+  await cashier.context.close()
+
   const admin = await openStaff(browser, 'admin')
-  for (const tab of [/Cardápio/, /Cupons/, /Relatórios/]) await expect(admin.page.getByRole('button', { name: tab })).toBeVisible()
+  for (const tab of [/Cozinha/, /Caixa/, /Cardápio/, /Cupons/, /Relatórios/]) await expect(admin.page.getByRole('button', { name: tab })).toBeVisible()
   await admin.context.close()
 })
 

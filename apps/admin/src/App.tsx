@@ -2,20 +2,25 @@ import { useEffect, useState } from 'react'
 import { loadSession, saveSession, unauthorizedEvent, type Session } from './lib/api'
 import Login from './pages/Login'
 import Kitchen from './pages/Kitchen'
+import Cashier from './pages/Cashier'
 import Products from './pages/Products'
 import Reports from './pages/Reports'
 import Coupons from './pages/Coupons'
 
-type Tab = 'kitchen' | 'products' | 'coupons' | 'reports'
+type Tab = 'kitchen' | 'cashier' | 'products' | 'coupons' | 'reports'
+
+/** Primeira tela de cada perfil. */
+const firstTab = (s: Session | null): Tab => (s?.user.role === 'CASHIER' ? 'cashier' : 'kitchen')
+const ROLE_LABEL = { ADMIN: 'Admin', KITCHEN: 'Cozinha', CASHIER: 'Caixa' } as const
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(loadSession)
-  const [tab, setTab] = useState<Tab>('kitchen')
+  const [tab, setTab] = useState<Tab>(firstTab(session))
 
   const update = (s: Session | null) => {
     saveSession(s)
     setSession(s)
-    setTab('kitchen')
+    setTab(firstTab(s))
   }
 
   // Token expirado/revogado: volta para o login.
@@ -28,8 +33,10 @@ export default function App() {
   if (!session) return <Login onLogin={update} />
 
   const isAdmin = session.user.role === 'ADMIN'
-  const tabs: { id: Tab; label: string; admin?: boolean }[] = [
-    { id: 'kitchen', label: '🍳 Cozinha' },
+  const role = session.user.role
+  const tabs: { id: Tab; label: string; admin?: boolean; roles?: string[] }[] = [
+    { id: 'kitchen', label: '🍳 Cozinha', roles: ['KITCHEN', 'ADMIN'] },
+    { id: 'cashier', label: '💵 Caixa', roles: ['CASHIER', 'ADMIN'] },
     { id: 'products', label: '📋 Cardápio', admin: true },
     { id: 'coupons', label: '🏷️ Cupons', admin: true },
     { id: 'reports', label: '📈 Relatórios', admin: true },
@@ -40,7 +47,7 @@ export default function App() {
       <nav>
         <strong className="brand">🍔 Burger Lab</strong>
         {tabs
-          .filter((t) => !t.admin || isAdmin)
+          .filter((t) => (!t.admin || isAdmin) && (!t.roles || t.roles.includes(role)))
           .map((t) => (
             <button key={t.id} className={t.id === tab ? 'nav on' : 'nav'} onClick={() => setTab(t.id)}>
               {t.label}
@@ -48,12 +55,13 @@ export default function App() {
           ))}
         <div className="spacer" />
         <span className="muted">
-          {session.user.name} · {isAdmin ? 'Admin' : 'Cozinha'}
+          {session.user.name} · {ROLE_LABEL[role]}
         </span>
         <button className="nav" onClick={() => update(null)}>Sair</button>
       </nav>
       <main>
         {tab === 'kitchen' && <Kitchen token={session.token} />}
+        {tab === 'cashier' && <Cashier token={session.token} />}
         {tab === 'products' && isAdmin && <Products token={session.token} />}
         {tab === 'coupons' && isAdmin && <Coupons token={session.token} />}
         {tab === 'reports' && isAdmin && <Reports token={session.token} />}

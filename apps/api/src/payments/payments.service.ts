@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { z } from 'zod'
+import { PixProvider } from './pix.provider'
 import { requireSecret } from '../config'
 import { releaseOrder } from '../orders/order-release'
 import { PrismaService } from '../prisma/prisma.service'
@@ -32,6 +33,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
+    private readonly pix: PixProvider,
   ) {}
 
   onModuleInit() {
@@ -85,7 +87,63 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, alreadyProcessed: false }
   }
 
-  /** Cancela pedidos Pix não pagos a tempo e devolve estoque e uso de cupom. */
+  /**
+   * Confirma o recebimento de um pagamento no caixa (dinheiro). Quem confirma fica registrado.
+   * Só um pedido ainda aguardando pagamento pode ser confirmado.
+   */
+  async confirmCash(orderId: string, userId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { orderId } })
+    if (!payment || payment.method !== 'CASH') throw new NotFoundException('Pedido com pagamento no caixa não encontrado')
+    if (payment.status === 'PAID') throw new ConflictException('Pagamento já confirmado')
+    if (payment.status !== 'PENDING') throw new ConflictException('Este pedido não aguarda mais pagamento (expirou ou foi cancelado)')
+
+    const confirmed = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.payment.updateMany({
+        where: { id: payment.id, status: 'PENDING' },
+        data: { status: 'PAID', paidAt: new Date(), confirmedById: userId },
+      })
+      if (claim.count === 0) throw new ConflictException('Pagamento já confirmado')
+      const moved = await tx.order.updateMany({ where: { id: orderId, status: 'CREATED' }, data: { status: 'PAID' } })
+      if (moved.count === 0) throw new ConflictException('Pedido não está mais aguardando pagamento')
+      await tx.orderEvent.create({ data: { orderId, from: 'CREATED', to: 'PAID' } })
+      return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: orderInclude })
+    })
+
+    this.realtime.orderCreated(confirmed)
+    return confirmed
+  }
+
+  /**
+   * Estorna um pagamento já recebido. Pix passa pelo provedor; cartão e dinheiro são devolvidos
+   * manualmente (a equipe devolve o valor), então basta registrar. Se o provedor falhar, o pagamento
+   * fica REFUND_FAILED (visível no admin) e pode ser tentado de novo. Chamada fora de transação de banco,
+   * porque fala com um serviço externo.
+   */
+  async refundPayment(orderId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { orderId } })
+    if (!payment) throw new NotFoundException('Pagamento não encontrado')
+    if (payment.status === 'REFUNDED') throw new ConflictException('Pagamento já estornado')
+    if (payment.status !== 'PAID' && payment.status !== 'REFUND_FAILED') {
+      throw new ConflictException('Não há pagamento recebido para estornar')
+    }
+
+    try {
+      const { refundId } =
+        payment.method === 'PIX' && payment.txid
+          ? await this.pix.refund({ txid: payment.txid, amountCents: payment.amountCents })
+          : { refundId: `manual-${payment.method.toLowerCase()}` }
+      return await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'REFUNDED', refundedAt: new Date(), refundId, refundError: null },
+      })
+    } catch (e) {
+      const message = e instanceof Error ? e.message.slice(0, 300) : 'erro desconhecido'
+      this.log.error(`Estorno do pedido ${orderId} falhou: ${message}`)
+      return this.prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUND_FAILED', refundError: message } })
+    }
+  }
+
+  /** Cancela pedidos não pagos a tempo (Pix e caixa) e devolve estoque e uso de cupom. */
   async expirePending(now = new Date()) {
     const pending = await this.prisma.payment.findMany({
       where: { status: 'PENDING', expiresAt: { lt: now } },

@@ -24,11 +24,14 @@ enum OrderMode {
 enum PayMethod {
   PIX
   CARD
+  /// Pago no caixa; a equipe confirma o recebimento.
+  CASH
 }
 
 enum Role {
   ADMIN
   KITCHEN
+  CASHIER
 }
 
 model User {
@@ -130,6 +133,11 @@ model Payment {
   pixPayload  String?
   expiresAt   DateTime?
   paidAt      DateTime?
+  /// Quem confirmou o recebimento (pagamento no caixa).
+  confirmedById String?
+  refundedAt  DateTime?
+  refundId    String?
+  refundError String?
   createdAt   DateTime  @default(now())
 }
 
@@ -137,6 +145,8 @@ enum PaymentStatus {
   PENDING
   PAID
   EXPIRED
+  REFUNDED
+  REFUND_FAILED
 }
 
 enum CouponType {

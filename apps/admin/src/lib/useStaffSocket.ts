@@ -5,6 +5,8 @@ import type { Order } from './api'
 interface Handlers {
   onCreated: (o: Order) => void
   onUpdated: (o: Order) => void
+  /** Pedido novo aguardando pagamento no caixa. */
+  onPending?: (o: Order) => void
   /** Chamado a cada (re)conexão, para ressincronizar o que foi perdido offline. */
   onConnect: () => void
 }
@@ -24,6 +26,7 @@ export function useStaffSocket(token: string, handlers: Handlers) {
     socket.on('disconnect', () => setOnline(false))
     socket.on('order:created', (o: Order) => ref.current.onCreated(o))
     socket.on('order:updated', (o: Order) => ref.current.onUpdated(o))
+    socket.on('order:pending', (o: Order) => ref.current.onPending?.(o))
     return () => {
       socket.close()
     }

@@ -39,6 +39,7 @@ button:focus-visible, a:focus-visible { outline: 4px solid var(--accent); outlin
 .upsell-list { display: flex; flex-direction: column; gap: 12px; }
 .upsell-item { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 12px; border: 2px solid var(--line); border-radius: 16px; }
 .upsell-item div { display: flex; flex-direction: column; }
+.cash-note { max-width: 520px; font-size: 1.2rem; line-height: 1.4; background: #fff3d6; border-radius: 16px; padding: 14px 18px; }
 .ticket strong.code { font-size: 4.5rem; letter-spacing: 6px; }
 .error { color: var(--brand-dark); font-weight: 700; font-size: 1.2rem; }
 .product:disabled { opacity: .45; cursor: not-allowed; }

@@ -9,7 +9,7 @@ export const orderItemSchema = z.object({
 
 export const createOrderSchema = z.object({
   mode: z.enum(['DINE_IN', 'TAKEAWAY']),
-  method: z.enum(['PIX', 'CARD']),
+  method: z.enum(['PIX', 'CARD', 'CASH']),
   items: z.array(orderItemSchema).min(1).max(30),
   couponCode: z.string().trim().max(32).optional(),
   /** Código curto gerado no totem; identifica pedidos criados offline. */

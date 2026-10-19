@@ -15,10 +15,16 @@ export default function Done({ ticket, onFinish }: { ticket: Ticket; onFinish: (
   return (
     <main className="done">
       <div className="check">✓</div>
-      <h1>Pedido confirmado!</h1>
+      <h1>{ticket.cash ? 'Pedido registrado!' : 'Pedido confirmado!'}</h1>
+      {ticket.cash && (
+        <p className="cash-note">
+          💵 <strong>Dirija-se ao caixa</strong> e informe {ticket.offline ? 'o código' : 'a senha'} abaixo para pagar.
+          O pedido só vai para a cozinha depois do pagamento (você tem 15 minutos).
+        </p>
+      )}
       {ticket.offline ? (
         <>
-          <p className="muted">Estamos sem conexão. Informe este código no balcão:</p>
+          <p className="muted">Estamos sem conexão. Informe este código no balcão{ticket.cash ? '' : ':'}</p>
           <div className="ticket">
             <small>CÓDIGO</small>
             <strong className="code">{ticket.clientRef}</strong>
@@ -26,7 +32,7 @@ export default function Done({ ticket, onFinish }: { ticket: Ticket; onFinish: (
         </>
       ) : (
         <>
-          <p className="muted">Guarde sua senha e aguarde ser chamado</p>
+          {!ticket.cash && <p className="muted">Guarde sua senha e aguarde ser chamado</p>}
           <div className="ticket">
             <small>SENHA</small>
             <strong>{ticket.number}</strong>

@@ -16,7 +16,7 @@ export class ReportsService {
 
     const [totals, byHourRaw, byDayRaw, top] = await Promise.all([
       this.prisma.order.aggregate({
-        where: { createdAt: { gte: since }, status: { in: PAID_STATUSES } },
+        where: { createdAt: { gte: since }, status: { in: PAID_STATUSES }, payment: { is: { status: 'PAID' } } },
         _sum: { totalCents: true },
         _count: true,
       }),
@@ -26,6 +26,7 @@ export class ReportsService {
                COALESCE(SUM("totalCents"), 0)::int AS revenue
         FROM "Order"
         WHERE "createdAt" >= ${since} AND status::text IN ('PAID','PREPARING','READY','DELIVERED')
+          AND EXISTS (SELECT 1 FROM "Payment" p WHERE p."orderId" = "Order".id AND p.status::text = 'PAID')
         GROUP BY 1 ORDER BY 1`,
       this.prisma.$queryRaw<{ day: string; orders: number; revenue: number }[]>`
         SELECT to_char((("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${TZ})::date, 'YYYY-MM-DD') AS day,
@@ -33,6 +34,7 @@ export class ReportsService {
                COALESCE(SUM("totalCents"), 0)::int AS revenue
         FROM "Order"
         WHERE "createdAt" >= ${since} AND status::text IN ('PAID','PREPARING','READY','DELIVERED')
+          AND EXISTS (SELECT 1 FROM "Payment" p WHERE p."orderId" = "Order".id AND p.status::text = 'PAID')
         GROUP BY 1 ORDER BY 1`,
       this.prisma.$queryRaw<{ name: string; qty: number; revenue: number }[]>`
         SELECT oi."productName" AS name,
@@ -41,6 +43,7 @@ export class ReportsService {
         FROM "OrderItem" oi
         JOIN "Order" o ON o.id = oi."orderId"
         WHERE o."createdAt" >= ${since} AND o.status::text IN ('PAID','PREPARING','READY','DELIVERED')
+          AND EXISTS (SELECT 1 FROM "Payment" p WHERE p."orderId" = o.id AND p.status::text = 'PAID')
         GROUP BY 1 ORDER BY qty DESC LIMIT 5`,
     ])
 

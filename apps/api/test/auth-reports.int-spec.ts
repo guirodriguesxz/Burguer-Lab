@@ -62,7 +62,7 @@ describe('autenticação, RBAC e relatórios (integração)', () => {
     it('agrupa por hora no fuso de São Paulo e ignora pedidos cancelados', async () => {
       const at = new Date(Date.now() - 2 * 60 * 60 * 1000)
       const mk = (totalCents: number, status: 'PAID' | 'CANCELED') =>
-        prisma.order.create({ data: { mode: 'DINE_IN', totalCents, status, createdAt: at, items: { create: [{ productId: 'cola', productName: 'Refri', qty: 2, unitPriceCents: totalCents / 2 }] } } })
+        prisma.order.create({ data: { mode: 'DINE_IN', totalCents, status, createdAt: at, items: { create: [{ productId: 'cola', productName: 'Refri', qty: 2, unitPriceCents: totalCents / 2 }] }, payment: { create: { method: 'CARD', amountCents: totalCents, status: status === 'PAID' ? 'PAID' : 'REFUNDED' } } } })
       await mk(2000, 'PAID')
       await mk(1000, 'PAID')
       await mk(9999, 'CANCELED')

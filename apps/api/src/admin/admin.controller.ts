@@ -4,6 +4,7 @@ import {
   ConflictException,
   Controller,
   Get,
+  HttpCode,
   NotFoundException,
   Param,
   Patch,
@@ -13,6 +14,9 @@ import {
 } from '@nestjs/common'
 import { z } from 'zod'
 import { normalizeCode } from '../coupons/coupon-rules'
+import { canTransition } from '../orders/order-state'
+import { OrdersService } from '../orders/orders.service'
+import { PaymentsService } from '../payments/payments.service'
 import { AuthGuard } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { PrismaService } from '../prisma/prisma.service'
@@ -52,6 +56,8 @@ export class AdminController {
     private readonly prisma: PrismaService,
     private readonly reports: ReportsService,
     private readonly realtime: RealtimeGateway,
+    private readonly orders: OrdersService,
+    private readonly payments: PaymentsService,
   ) {}
 
   @Get('products')
@@ -92,6 +98,23 @@ export class AdminController {
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
     if (!(await this.prisma.coupon.findUnique({ where: { id } }))) throw new NotFoundException('Cupom não encontrado')
     return this.prisma.coupon.update({ where: { id }, data: parsed.data })
+  }
+
+  /**
+   * Estorno manual. Pedido ainda em andamento é cancelado (devolve estoque e cupom) e estornado;
+   * pedido já entregue só tem o pagamento estornado. Também serve para tentar de novo um estorno que falhou.
+   */
+  @Post('orders/:id/refund')
+  @HttpCode(200)
+  async refund(@Param('id') id: string) {
+    const order = await this.prisma.order.findUnique({ where: { id }, include: { payment: true } })
+    if (!order || !order.payment) throw new NotFoundException('Pedido não encontrado')
+
+    if (order.payment.status === 'PAID' && canTransition(order.status, 'CANCELED')) {
+      return this.orders.transition(id, 'CANCELED') // cancela, devolve estoque e estorna
+    }
+    await this.payments.refundPayment(id) // entregue, ou nova tentativa de um estorno que falhou
+    return this.prisma.order.findUniqueOrThrow({ where: { id }, include: { items: true, payment: true } })
   }
 
   @Get('reports/summary')

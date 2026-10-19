@@ -21,11 +21,16 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!token) return // conexão pública: só recebe eventos de broadcast
     const user = await this.sessions.verify(token)
     if (!user) return client.disconnect(true)
-    if (user.role === 'ADMIN' || user.role === 'KITCHEN') await client.join('staff')
+    if (user.role === 'ADMIN' || user.role === 'KITCHEN' || user.role === 'CASHIER') await client.join('staff')
   }
 
   orderCreated(order: unknown) {
     this.server.to('staff').emit('order:created', order)
+  }
+
+  /** Pedido aguardando pagamento no caixa. */
+  orderPending(order: unknown) {
+    this.server.to('staff').emit('order:pending', order)
   }
 
   orderUpdated(order: unknown) {
