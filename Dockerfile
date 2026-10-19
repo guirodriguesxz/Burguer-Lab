@@ -36,6 +36,11 @@ COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/public ./apps/api/public
 COPY --chmod=755 scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
+# Prefere IPv4 ao resolver nomes. Várias hospedagens (ex.: Render) não têm saída IPv6, e bancos como o Neon
+# publicam IPv6 e IPv4: sem isso o Prisma pode ficar tentando o IPv6 até estourar o tempo (P1001).
+RUN echo "precedence ::ffff:0:0/96  100" >> /etc/gai.conf
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
+
 # Não roda como root.
 USER node
 WORKDIR /app/apps/api
