@@ -2,7 +2,7 @@ import { NestExpressApplication } from '@nestjs/platform-express'
 import { PrismaClient } from '@prisma/client'
 import request from 'supertest'
 import { Mail, Mailer } from '../src/mail/mailer'
-import { bearer, createApp, resetDb, sleep } from './helpers'
+import { bearer, createApp, resetDb, sleep, tokenOf } from './helpers'
 
 describe('redefinição de senha (integração)', () => {
   let app: NestExpressApplication
@@ -48,7 +48,7 @@ describe('redefinição de senha (integração)', () => {
   })
 
   it('fluxo completo: nova senha vale, a antiga não, e a sessão aberta é derrubada', async () => {
-    const oldSession = (await login('admin@test.dev', 'admin-pass').expect(201)).body.token
+    const oldSession = tokenOf(await login('admin@test.dev', 'admin-pass').expect(201))
     await api().get('/api/admin/products').set(bearer(oldSession)).expect(200)
 
     await forgot('admin@test.dev').expect(202)
@@ -56,7 +56,7 @@ describe('redefinição de senha (integração)', () => {
     await reset(lastToken(), 'nova-senha-2026').expect(200)
 
     await login('admin@test.dev', 'admin-pass').expect(401)
-    const fresh = (await login('admin@test.dev', 'nova-senha-2026').expect(201)).body.token
+    const fresh = tokenOf(await login('admin@test.dev', 'nova-senha-2026').expect(201))
     await api().get('/api/admin/products').set(bearer(fresh)).expect(200)
 
     // trocar a senha invalida os tokens emitidos antes

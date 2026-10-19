@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common'
 import { z } from 'zod'
@@ -18,10 +19,13 @@ import { canTransition } from '../orders/order-state'
 import { OrdersService } from '../orders/orders.service'
 import { PaymentsService } from '../payments/payments.service'
 import { AuthGuard } from '../auth/auth.guard'
-import { Roles } from '../auth/roles.decorator'
+import { actorOf, AuditService, diff } from '../audit/audit.service'
+import { Roles, SessionUser } from '../auth/roles.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { ReportsService } from './reports.service'
+
+type Req = { user: SessionUser; ip?: string }
 
 const createCouponSchema = z
   .object({
@@ -49,6 +53,7 @@ export class AdminController {
     private readonly realtime: RealtimeGateway,
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get('coupons')
@@ -57,22 +62,37 @@ export class AdminController {
   }
 
   @Post('coupons')
-  async createCoupon(@Body() body: unknown) {
+  async createCoupon(@Body() body: unknown, @Req() req: Req) {
     const parsed = createCouponSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
     const code = normalizeCode(parsed.data.code)
     if (await this.prisma.coupon.findUnique({ where: { code } })) throw new ConflictException('Já existe um cupom com esse código')
-    return this.prisma.coupon.create({
+    const coupon = await this.prisma.coupon.create({
       data: { ...parsed.data, code, expiresAt: parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null },
     })
+    await this.audit.record(actorOf(req), 'coupon.create', {
+      entity: 'Coupon',
+      entityId: coupon.id,
+      meta: { code, type: coupon.type, value: coupon.value, maxUses: coupon.maxUses },
+      ip: req.ip,
+    })
+    return coupon
   }
 
   @Patch('coupons/:id')
-  async updateCoupon(@Param('id') id: string, @Body() body: unknown) {
+  async updateCoupon(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = updateCouponSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
-    if (!(await this.prisma.coupon.findUnique({ where: { id } }))) throw new NotFoundException('Cupom não encontrado')
-    return this.prisma.coupon.update({ where: { id }, data: parsed.data })
+    const current = await this.prisma.coupon.findUnique({ where: { id } })
+    if (!current) throw new NotFoundException('Cupom não encontrado')
+    const coupon = await this.prisma.coupon.update({ where: { id }, data: parsed.data })
+    await this.audit.record(actorOf(req), 'coupon.update', {
+      entity: 'Coupon',
+      entityId: id,
+      meta: { code: current.code, changes: diff(current as unknown as Record<string, unknown>, parsed.data) },
+      ip: req.ip,
+    })
+    return coupon
   }
 
   /**
@@ -81,15 +101,24 @@ export class AdminController {
    */
   @Post('orders/:id/refund')
   @HttpCode(200)
-  async refund(@Param('id') id: string) {
+  async refund(@Param('id') id: string, @Req() req: Req) {
     const order = await this.prisma.order.findUnique({ where: { id }, include: { payment: true } })
     if (!order || !order.payment) throw new NotFoundException('Pedido não encontrado')
 
+    let result
     if (order.payment.status === 'PAID' && canTransition(order.status, 'CANCELED')) {
-      return this.orders.transition(id, 'CANCELED') // cancela, devolve estoque e estorna
+      result = await this.orders.transition(id, 'CANCELED') // cancela, devolve estoque e estorna
+    } else {
+      await this.payments.refundPayment(id) // entregue, ou nova tentativa de um estorno que falhou
+      result = await this.prisma.order.findUniqueOrThrow({ where: { id }, include: { items: true, payment: true } })
     }
-    await this.payments.refundPayment(id) // entregue, ou nova tentativa de um estorno que falhou
-    return this.prisma.order.findUniqueOrThrow({ where: { id }, include: { items: true, payment: true } })
+    await this.audit.record(actorOf(req), 'payment.refund', {
+      entity: 'Order',
+      entityId: id,
+      meta: { ticket: order.ticket, amountCents: order.payment.amountCents, method: order.payment.method, result: result.payment?.status },
+      ip: req.ip,
+    })
+    return result
   }
 
   @Get('reports/summary')

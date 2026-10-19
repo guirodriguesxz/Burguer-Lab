@@ -11,7 +11,7 @@ function minutesLeft(expiresAt: string | null, now: number) {
 }
 
 /** Caixa: pedidos que o cliente vai pagar em dinheiro. Confirmar o recebimento envia o pedido à cozinha. */
-export default function Cashier({ token }: { token: string }) {
+export default function Cashier() {
   const [orders, setOrders] = useState<Order[]>([])
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
@@ -25,12 +25,12 @@ export default function Cashier({ token }: { token: string }) {
     })
   }, [])
 
-  const online = useStaffSocket(token, {
+  const online = useStaffSocket({
     onCreated: upsert,
     onUpdated: upsert,
     onPending: upsert,
     onConnect: () => {
-      fetchPendingCash(token)
+      fetchPendingCash()
         .then((list) => setOrders(list.filter(isPendingCash)))
         .catch(() => undefined)
     },
@@ -86,10 +86,10 @@ export default function Cashier({ token }: { token: string }) {
                 </ul>
                 <footer>
                   <strong className="cash-total">{brl(o.totalCents)}</strong>
-                  <button className="ghost" disabled={busy === o.id} onClick={() => act(o.id, () => updateOrderStatus(token, o.id, 'CANCELED'))}>
+                  <button className="ghost" disabled={busy === o.id} onClick={() => act(o.id, () => updateOrderStatus(o.id, 'CANCELED'))}>
                     Cancelar
                   </button>
-                  <button className="primary" disabled={busy === o.id} onClick={() => act(o.id, () => confirmCash(token, o.id))}>
+                  <button className="primary" disabled={busy === o.id} onClick={() => act(o.id, () => confirmCash(o.id))}>
                     Recebi — confirmar
                   </button>
                 </footer>

@@ -7,7 +7,7 @@ import { corsOrigin } from './cors'
 
 /** Configuração compartilhada entre a aplicação real e os testes de integração. */
 export function configureApp(app: INestApplication) {
-  app.enableCors({ origin: corsOrigin() })
+  app.enableCors({ origin: corsOrigin(), credentials: true })
   app.setGlobalPrefix('api')
 }
 

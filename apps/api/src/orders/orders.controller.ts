@@ -15,12 +15,15 @@ import {
 } from '@nestjs/common'
 import { OrderStatus } from '@prisma/client'
 import { AuthGuard } from '../auth/auth.guard'
-import { AuthUser, Roles } from '../auth/roles.decorator'
+import { actorOf, AuditService } from '../audit/audit.service'
+import { Roles, SessionUser } from '../auth/roles.decorator'
 import { PaymentsService } from '../payments/payments.service'
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
 import { z } from 'zod'
 import { createOrderSchema, updateStatusSchema } from './orders.dto'
 import { OrdersService } from './orders.service'
+
+type Req = { user: SessionUser; ip?: string }
 
 const statusFilterSchema = z.array(z.enum(['CREATED', 'PAID', 'PREPARING', 'READY', 'DELIVERED', 'CANCELED'])).max(6)
 
@@ -29,6 +32,7 @@ export class OrdersController {
   constructor(
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
+    private readonly audit: AuditService,
   ) {}
 
   // Criar pedido é público (o totem não faz login): limita abuso por IP. O teto é folgado, pois vários
@@ -63,15 +67,27 @@ export class OrdersController {
   @Patch(':id/status')
   @UseGuards(AuthGuard)
   @Roles('KITCHEN', 'ADMIN', 'CASHIER')
-  updateStatus(@Param('id') id: string, @Body() body: unknown, @Req() req: { user: AuthUser }) {
+  async updateStatus(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = updateStatusSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
+    let result
     if (req.user.role === 'CASHIER') {
       // O caixa só mexe em pedidos que aguardam pagamento, e só para cancelá-los.
       if (parsed.data.status !== 'CANCELED') throw new ForbiddenException('O caixa só pode cancelar pedidos pendentes')
-      return this.orders.transition(id, 'CANCELED', { onlyPending: true })
+      result = await this.orders.transition(id, 'CANCELED', { onlyPending: true })
+    } else {
+      result = await this.orders.transition(id, parsed.data.status)
     }
-    return this.orders.transition(id, parsed.data.status)
+    // O andamento normal do preparo é rotina; cancelar mexe em dinheiro e estoque, então fica registrado.
+    if (parsed.data.status === 'CANCELED') {
+      await this.audit.record(actorOf(req), 'order.cancel', {
+        entity: 'Order',
+        entityId: id,
+        meta: { ticket: result.ticket, totalCents: result.totalCents, payment: result.payment?.status },
+        ip: req.ip,
+      })
+    }
+    return result
   }
 
   /** O caixa confirma que recebeu o dinheiro: o pedido segue para a cozinha. */
@@ -79,7 +95,14 @@ export class OrdersController {
   @HttpCode(200)
   @UseGuards(AuthGuard)
   @Roles('CASHIER', 'ADMIN')
-  confirmCash(@Param('id') id: string, @Req() req: { user: AuthUser }) {
-    return this.payments.confirmCash(id, req.user.sub)
+  async confirmCash(@Param('id') id: string, @Req() req: Req) {
+    const order = await this.payments.confirmCash(id, req.user.sub)
+    await this.audit.record(actorOf(req), 'payment.cash_confirmed', {
+      entity: 'Order',
+      entityId: id,
+      meta: { ticket: order.ticket, amountCents: order.totalCents },
+      ip: req.ip,
+    })
+    return order
   }
 }

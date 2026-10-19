@@ -67,7 +67,15 @@ const CREDS = {
 export async function loginAs(app: NestExpressApplication, who: keyof typeof CREDS) {
   const creds = CREDS[who]
   const res = await request(app.getHttpServer()).post('/api/auth/login').send(creds).expect(201)
-  return res.body.token as string
+  return tokenOf(res)
+}
+
+/** O token agora vem só no cookie de sessão (Set-Cookie); clientes de API podem reenviá-lo como Bearer. */
+export function tokenOf(res: { headers: Record<string, unknown> }): string {
+  const cookies = ([] as string[]).concat((res.headers['set-cookie'] as string[] | string | undefined) ?? [])
+  const line = cookies.find((c) => c.startsWith('bl_session='))
+  if (!line) throw new Error('resposta sem cookie de sessão')
+  return decodeURIComponent(line.split(';')[0].slice('bl_session='.length))
 }
 
 export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` })

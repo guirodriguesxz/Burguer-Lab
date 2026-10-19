@@ -2,7 +2,7 @@ import { NestExpressApplication } from '@nestjs/platform-express'
 import { PrismaClient } from '@prisma/client'
 import request from 'supertest'
 import { Mail, Mailer } from '../src/mail/mailer'
-import { bearer, createApp, loginAs, resetDb, sleep } from './helpers'
+import { bearer, createApp, loginAs, resetDb, sleep, tokenOf } from './helpers'
 
 describe('usuários, troca de senha e histórico de pedidos (integração)', () => {
   let app: NestExpressApplication
@@ -97,12 +97,12 @@ describe('usuários, troca de senha e histórico de pedidos (integração)', () 
 
       // com um segundo admin, o primeiro pode rebaixá-lo; o último continua protegido
       await create({ name: 'Segundo Admin', email: 'admin2@test.dev', role: 'ADMIN', password: 'senha-forte-2026' }).expect(201)
-      const admin2 = (await login('admin2@test.dev', 'senha-forte-2026').expect(201)).body.token
+      const admin2 = tokenOf(await login('admin2@test.dev', 'senha-forte-2026').expect(201))
       const id2 = await userId('admin2@test.dev')
       await patch(id2, { role: 'KITCHEN' }).expect(200) // sobra só o admin original
       await patch(me, { role: 'KITCHEN' }, admin2).expect(401) // admin2 foi rebaixado: a sessão dele já caiu
       await patch(id2, { role: 'ADMIN' }).expect(200)
-      const admin2Again = (await login('admin2@test.dev', 'senha-forte-2026').expect(201)).body.token
+      const admin2Again = tokenOf(await login('admin2@test.dev', 'senha-forte-2026').expect(201))
       await patch(me, { active: false }, admin2Again).expect(200) // agora há outro admin: pode
       await patch(id2, { active: false }, admin2Again).expect(409) // ele próprio
     })
@@ -130,14 +130,14 @@ describe('usuários, troca de senha e histórico de pedidos (integração)', () 
     })
 
     it('troca a senha, derruba as outras sessões e devolve um token novo para esta continuar', async () => {
-      const other = (await login('kitchen@test.dev', 'kitchen-pass').expect(201)).body.token
+      const other = tokenOf(await login('kitchen@test.dev', 'kitchen-pass').expect(201))
       const res = await change({ currentPassword: 'kitchen-pass', newPassword: 'nova-senha-2026' }).expect(200)
 
       await login('kitchen@test.dev', 'kitchen-pass').expect(401)
       await login('kitchen@test.dev', 'nova-senha-2026').expect(201)
       await api().get('/api/orders').set(bearer(kitchen)).expect(401) // token antigo
       await api().get('/api/orders').set(bearer(other)).expect(401) // outra sessão aberta
-      await api().get('/api/orders').set(bearer(res.body.token)).expect(200) // token novo vale
+      await api().get('/api/orders').set(bearer(tokenOf(res))).expect(200) // token novo vale (vem no cookie)
     })
   })
 

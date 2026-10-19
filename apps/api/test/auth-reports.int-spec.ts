@@ -2,7 +2,7 @@ import { NestExpressApplication } from '@nestjs/platform-express'
 import { JwtService } from '@nestjs/jwt'
 import { PrismaClient } from '@prisma/client'
 import request from 'supertest'
-import { bearer, createApp, resetDb } from './helpers'
+import { bearer, createApp, resetDb, tokenOf } from './helpers'
 
 describe('autenticação, RBAC e relatórios (integração)', () => {
   let app: NestExpressApplication
@@ -26,8 +26,9 @@ describe('autenticação, RBAC e relatórios (integração)', () => {
   it('login válido devolve token e usuário sem expor o hash da senha', async () => {
     const res = await login('admin@test.dev', 'admin-pass').expect(201)
     expect(res.body.user).toEqual(expect.objectContaining({ email: 'admin@test.dev', role: 'ADMIN' }))
+    expect(res.body.token).toBeUndefined() // o token não é exposto ao JavaScript da página
     expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|\$2[aby]\$/)
-    const me = await request(app.getHttpServer()).get('/api/auth/me').set(bearer(res.body.token)).expect(200)
+    const me = await request(app.getHttpServer()).get('/api/auth/me').set(bearer(tokenOf(res))).expect(200)
     expect(me.body.role).toBe('ADMIN')
   })
 
@@ -38,7 +39,7 @@ describe('autenticação, RBAC e relatórios (integração)', () => {
   })
 
   it('rejeita token ausente, adulterado, expirado e de papel insuficiente', async () => {
-    const { body } = await login('kitchen@test.dev', 'kitchen-pass').expect(201)
+    const body = { token: tokenOf(await login('kitchen@test.dev', 'kitchen-pass').expect(201)) }
     await request(app.getHttpServer()).get('/api/admin/products').expect(401)
     await request(app.getHttpServer()).get('/api/admin/products').set(bearer(body.token + 'x')).expect(401)
 
@@ -56,7 +57,7 @@ describe('autenticação, RBAC e relatórios (integração)', () => {
 
     let token: string
     beforeEach(async () => {
-      token = (await login('admin@test.dev', 'admin-pass').expect(201)).body.token
+      token = tokenOf(await login('admin@test.dev', 'admin-pass').expect(201))
     })
 
     it('agrupa por hora no fuso de São Paulo e ignora pedidos cancelados', async () => {

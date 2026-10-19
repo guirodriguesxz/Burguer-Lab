@@ -15,20 +15,20 @@ function Bars({ data, label, format }: { data: { key: string; value: number }[];
   )
 }
 
-export default function Reports({ token }: { token: string }) {
+export default function Reports() {
   const [days, setDays] = useState(7)
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    fetchSummary(token, days)
+    fetchSummary(days)
       .then((d) => !cancelled && (setData(d), setError(null)))
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Erro ao carregar'))
     return () => {
       cancelled = true
     }
-  }, [token, days])
+  }, [days])
 
   const hours = data?.byHour.filter((h) => h.hour >= 8 && h.hour <= 23) ?? []
 

@@ -13,7 +13,7 @@ export const CREDS = {
 export async function resetState() {
   const prisma = new PrismaClient({ datasources: { db: { url: E2E_DB } } })
   try {
-    await prisma.$executeRawUnsafe('TRUNCATE "OrderEvent","Payment","OrderItem","Order","DailyCounter" RESTART IDENTITY CASCADE')
+    await prisma.$executeRawUnsafe('TRUNCATE "OrderEvent","Payment","OrderItem","Order","DailyCounter","AuditLog","RevokedToken" RESTART IDENTITY CASCADE')
     await prisma.$executeRawUnsafe('UPDATE "Coupon" SET "usedCount" = 0, active = true')
     await prisma.$executeRawUnsafe('UPDATE "Product" SET available = true, stock = CASE WHEN stock IS NULL THEN NULL ELSE 50 END')
   } finally {
@@ -21,10 +21,10 @@ export async function resetState() {
   }
 }
 
-export async function apiToken(request: APIRequestContext, who: keyof typeof CREDS = 'admin') {
+/** Entra pela API: a sessão fica no cookie do contexto de requisições, que o reenvia nas chamadas seguintes. */
+export async function apiLogin(request: APIRequestContext, who: keyof typeof CREDS = 'admin') {
   const res = await request.post('/api/auth/login', { data: CREDS[who] })
   expect(res.status()).toBe(201)
-  return (await res.json()).token as string
 }
 
 /** Faz o papel do provedor Pix: webhook com assinatura HMAC sobre o corpo bruto. */
@@ -35,8 +35,8 @@ export async function sendPixWebhook(request: APIRequestContext, txid: string, a
 }
 
 export async function findOrder(request: APIRequestContext, match: (o: any) => boolean) {
-  const token = await apiToken(request)
-  const res = await request.get('/api/orders', { headers: { Authorization: `Bearer ${token}` } })
+  await apiLogin(request)
+  const res = await request.get('/api/orders')
   return ((await res.json()) as any[]).find(match)
 }
 

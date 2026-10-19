@@ -12,11 +12,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common'
 import { z } from 'zod'
 import { AuthGuard } from '../auth/auth.guard'
-import { Roles } from '../auth/roles.decorator'
+import { actorOf, AuditService, diff } from '../audit/audit.service'
+import { Roles, SessionUser } from '../auth/roles.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 
@@ -30,6 +32,8 @@ const slug = (s: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 40) || 'item'
 const suffix = () => randomBytes(3).toString('hex')
+
+type Req = { user: SessionUser; ip?: string }
 
 const MAX_EXTRAS_PER_PRODUCT = 12
 
@@ -79,7 +83,12 @@ export class CatalogController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
+    private readonly audit: AuditService,
   ) {}
+
+  private log(req: Req, action: string, entity: string, entityId: string, meta: Record<string, unknown> = {}) {
+    return this.audit.record(actorOf(req), action, { entity, entityId, meta, ip: req.ip })
+  }
 
   private bad(error: z.ZodError): never {
     throw new BadRequestException(error.flatten())
@@ -107,7 +116,7 @@ export class CatalogController {
   }
 
   @Post('products')
-  async createProduct(@Body() body: unknown) {
+  async createProduct(@Body() body: unknown, @Req() req: Req) {
     const parsed = createProductSchema.safeParse(body)
     if (!parsed.success) this.bad(parsed.error)
     await this.requireCategory(parsed.data.categoryId)
@@ -116,11 +125,12 @@ export class CatalogController {
       include: withExtras,
     })
     this.realtime.menuChanged()
+    await this.log(req, 'product.create', 'Product', product.id, { name: product.name, priceCents: product.priceCents })
     return product
   }
 
   @Patch('products/:id')
-  async updateProduct(@Param('id') id: string, @Body() body: unknown) {
+  async updateProduct(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = updateProductSchema.safeParse(body)
     if (!parsed.success) this.bad(parsed.error)
     const current = await this.requireProduct(id)
@@ -128,32 +138,36 @@ export class CatalogController {
     if (current.archived && parsed.data.available) throw new ConflictException('Restaure o produto antes de ativá-lo')
     const product = await this.prisma.product.update({ where: { id }, data: parsed.data, include: withExtras })
     this.realtime.menuChanged()
+    // preço, estoque e disponibilidade são os campos que mais importam numa investigação
+    await this.log(req, 'product.update', 'Product', id, { name: current.name, changes: diff(current as unknown as Record<string, unknown>, parsed.data) })
     return product
   }
 
   /** "Excluir": arquiva. O produto some do cardápio e não pode mais ser vendido, mas continua no histórico. */
   @Delete('products/:id')
-  async archiveProduct(@Param('id') id: string) {
-    await this.requireProduct(id)
+  async archiveProduct(@Param('id') id: string, @Req() req: Req) {
+    const current = await this.requireProduct(id)
     const product = await this.prisma.product.update({ where: { id }, data: { archived: true, available: false }, include: withExtras })
     this.realtime.menuChanged()
+    await this.log(req, 'product.archive', 'Product', id, { name: current.name })
     return product
   }
 
   /** Traz de volta um produto arquivado (volta pausado: ative-o quando quiser vender). */
   @Post('products/:id/restore')
   @HttpCode(200)
-  async restoreProduct(@Param('id') id: string) {
-    await this.requireProduct(id)
+  async restoreProduct(@Param('id') id: string, @Req() req: Req) {
+    const current = await this.requireProduct(id)
     const product = await this.prisma.product.update({ where: { id }, data: { archived: false }, include: withExtras })
     this.realtime.menuChanged()
+    await this.log(req, 'product.restore', 'Product', id, { name: current.name })
     return product
   }
 
   // ---------- Adicionais ----------
 
   @Post('products/:id/extras')
-  async createExtra(@Param('id') id: string, @Body() body: unknown) {
+  async createExtra(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = createExtraSchema.safeParse(body)
     if (!parsed.success) this.bad(parsed.error)
     const product = await this.requireProduct(id)
@@ -163,26 +177,31 @@ export class CatalogController {
 
     const extra = await this.prisma.extra.create({ data: { ...parsed.data, id: `${id}-${slug(parsed.data.name)}-${suffix()}`, productId: id } })
     this.realtime.menuChanged()
+    await this.log(req, 'extra.create', 'Extra', extra.id, { productId: id, name: extra.name, priceCents: extra.priceCents })
     return extra
   }
 
   @Patch('extras/:id')
-  async updateExtra(@Param('id') id: string, @Body() body: unknown) {
+  async updateExtra(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = updateExtraSchema.safeParse(body)
     if (!parsed.success) this.bad(parsed.error)
-    if (!(await this.prisma.extra.findUnique({ where: { id } }))) throw new NotFoundException('Adicional não encontrado')
+    const current = await this.prisma.extra.findUnique({ where: { id } })
+    if (!current) throw new NotFoundException('Adicional não encontrado')
     const extra = await this.prisma.extra.update({ where: { id }, data: parsed.data })
     this.realtime.menuChanged()
+    await this.log(req, 'extra.update', 'Extra', id, { name: current.name, changes: diff(current as unknown as Record<string, unknown>, parsed.data) })
     return extra
   }
 
   /** Pode excluir de vez: pedidos antigos guardam nome e preço do adicional no próprio item. */
   @Delete('extras/:id')
   @HttpCode(200)
-  async deleteExtra(@Param('id') id: string) {
-    if (!(await this.prisma.extra.findUnique({ where: { id } }))) throw new NotFoundException('Adicional não encontrado')
+  async deleteExtra(@Param('id') id: string, @Req() req: Req) {
+    const current = await this.prisma.extra.findUnique({ where: { id } })
+    if (!current) throw new NotFoundException('Adicional não encontrado')
     await this.prisma.extra.delete({ where: { id } })
     this.realtime.menuChanged()
+    await this.log(req, 'extra.delete', 'Extra', id, { name: current.name, productId: current.productId })
     return { ok: true }
   }
 
@@ -194,33 +213,38 @@ export class CatalogController {
   }
 
   @Post('categories')
-  async createCategory(@Body() body: unknown) {
+  async createCategory(@Body() body: unknown, @Req() req: Req) {
     const parsed = createCategorySchema.safeParse(body)
     if (!parsed.success) this.bad(parsed.error)
     const category = await this.prisma.category.create({ data: { ...parsed.data, id: `${slug(parsed.data.label)}-${suffix()}` } })
     this.realtime.menuChanged()
+    await this.log(req, 'category.create', 'Category', category.id, { label: category.label })
     return category
   }
 
   @Patch('categories/:id')
-  async updateCategory(@Param('id') id: string, @Body() body: unknown) {
+  async updateCategory(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = updateCategorySchema.safeParse(body)
     if (!parsed.success) this.bad(parsed.error)
-    if (!(await this.prisma.category.findUnique({ where: { id } }))) throw new NotFoundException('Categoria não encontrada')
+    const current = await this.prisma.category.findUnique({ where: { id } })
+    if (!current) throw new NotFoundException('Categoria não encontrada')
     const category = await this.prisma.category.update({ where: { id }, data: parsed.data })
     this.realtime.menuChanged()
+    await this.log(req, 'category.update', 'Category', id, { label: current.label, changes: diff(current as unknown as Record<string, unknown>, parsed.data) })
     return category
   }
 
   @Delete('categories/:id')
   @HttpCode(200)
-  async deleteCategory(@Param('id') id: string) {
-    if (!(await this.prisma.category.findUnique({ where: { id } }))) throw new NotFoundException('Categoria não encontrada')
+  async deleteCategory(@Param('id') id: string, @Req() req: Req) {
+    const current = await this.prisma.category.findUnique({ where: { id } })
+    if (!current) throw new NotFoundException('Categoria não encontrada')
     if ((await this.prisma.product.count({ where: { categoryId: id } })) > 0) {
       throw new ConflictException('A categoria tem produtos (inclusive arquivados). Mova-os antes de excluir.')
     }
     await this.prisma.category.delete({ where: { id } })
     this.realtime.menuChanged()
+    await this.log(req, 'category.delete', 'Category', id, { label: current.label })
     return { ok: true }
   }
 }

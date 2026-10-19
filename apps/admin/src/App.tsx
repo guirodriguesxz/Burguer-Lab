@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { loadSession, saveSession, unauthorizedEvent, type Session } from './lib/api'
+import { fetchMe, logout, unauthorizedEvent, type Session } from './lib/api'
 import AccountDialog from './components/AccountDialog'
 import Login from './pages/Login'
 import Kitchen from './pages/Kitchen'
@@ -9,41 +9,48 @@ import Products from './pages/Products'
 import Reports from './pages/Reports'
 import Coupons from './pages/Coupons'
 import Users from './pages/Users'
+import AuditLog from './pages/AuditLog'
 
-type Tab = 'kitchen' | 'cashier' | 'orders' | 'products' | 'coupons' | 'users' | 'reports'
+type Tab = 'kitchen' | 'cashier' | 'orders' | 'products' | 'coupons' | 'users' | 'reports' | 'audit'
 
 /** Primeira tela de cada perfil. */
 const firstTab = (s: Session | null): Tab => (s?.user.role === 'CASHIER' ? 'cashier' : 'kitchen')
 const ROLE_LABEL = { ADMIN: 'Admin', KITCHEN: 'Cozinha', CASHIER: 'Caixa' } as const
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(loadSession)
-  const [tab, setTab] = useState<Tab>(firstTab(session))
+  // undefined = ainda descobrindo se há sessão (nada fica guardado no navegador: a sessão é um cookie HttpOnly)
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [tab, setTab] = useState<Tab>('kitchen')
   const [account, setAccount] = useState(false)
 
-  const update = (s: Session | null) => {
-    saveSession(s)
+  const start = (s: Session | null) => {
     setSession(s)
     setTab(firstTab(s))
     setAccount(false)
   }
 
-  /** Após trocar a senha o servidor emite um token novo; a pessoa continua na mesma tela. */
-  const replaceToken = (token: string) => {
-    if (!session) return
-    const next = { ...session, token }
-    saveSession(next)
-    setSession(next)
-  }
-
-  // Token expirado/revogado: volta para o login.
   useEffect(() => {
-    const onUnauthorized = () => update(null)
+    // se há reset=... na URL, a tela de login mostra a troca de senha; ainda assim confere a sessão
+    fetchMe()
+      .then((user) => start({ user }))
+      .catch(() => start(null))
+  }, [])
+
+  // Sessão caiu (expirou, foi revogada, usuário desativado): volta para o login.
+  useEffect(() => {
+    const onUnauthorized = () => start(null)
     window.addEventListener(unauthorizedEvent, onUnauthorized)
     return () => window.removeEventListener(unauthorizedEvent, onUnauthorized)
   }, [])
 
-  if (!session) return <Login onLogin={update} />
+  const signOut = async () => {
+    // Encerra no servidor (revoga o token) e só então limpa a tela; se a rede falhar, sai da tela do mesmo jeito.
+    await logout().catch(() => undefined)
+    start(null)
+  }
+
+  if (session === undefined) return <p className="muted boot" role="status">Carregando…</p>
+  if (!session) return <Login onLogin={start} />
 
   const isAdmin = session.user.role === 'ADMIN'
   const role = session.user.role
@@ -55,6 +62,7 @@ export default function App() {
     { id: 'coupons', label: '🏷️ Cupons', admin: true },
     { id: 'reports', label: '📈 Relatórios', admin: true },
     { id: 'users', label: '👥 Usuários', admin: true },
+    { id: 'audit', label: '🔎 Auditoria', admin: true },
   ]
 
   return (
@@ -73,18 +81,19 @@ export default function App() {
           {session.user.name} · {ROLE_LABEL[role]}
         </span>
         <button className="nav" onClick={() => setAccount(true)}>Minha senha</button>
-        <button className="nav" onClick={() => update(null)}>Sair</button>
+        <button className="nav" onClick={signOut}>Sair</button>
       </nav>
       <main>
-        {tab === 'kitchen' && <Kitchen token={session.token} />}
-        {tab === 'cashier' && <Cashier token={session.token} />}
-        {tab === 'orders' && isAdmin && <OrdersHistory token={session.token} />}
-        {tab === 'products' && isAdmin && <Products token={session.token} />}
-        {tab === 'coupons' && isAdmin && <Coupons token={session.token} />}
-        {tab === 'reports' && isAdmin && <Reports token={session.token} />}
-        {tab === 'users' && isAdmin && <Users token={session.token} myId={session.user.id} />}
+        {tab === 'kitchen' && <Kitchen />}
+        {tab === 'cashier' && <Cashier />}
+        {tab === 'orders' && isAdmin && <OrdersHistory />}
+        {tab === 'products' && isAdmin && <Products />}
+        {tab === 'coupons' && isAdmin && <Coupons />}
+        {tab === 'reports' && isAdmin && <Reports />}
+        {tab === 'users' && isAdmin && <Users myId={session.user.id} />}
+        {tab === 'audit' && isAdmin && <AuditLog />}
       </main>
-      {account && <AccountDialog session={session} onClose={() => setAccount(false)} onToken={replaceToken} />}
+      {account && <AccountDialog session={session} onClose={() => setAccount(false)} />}
     </div>
   )
 }

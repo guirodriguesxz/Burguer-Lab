@@ -1,8 +1,9 @@
-import { BadRequestException, Controller, Get, Header, Query, StreamableFile, UseGuards } from '@nestjs/common'
+import { BadRequestException, Controller, Get, Header, Query, Req, StreamableFile, UseGuards } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { AuthGuard } from '../auth/auth.guard'
-import { Roles } from '../auth/roles.decorator'
+import { actorOf, AuditService } from '../audit/audit.service'
+import { Roles, SessionUser } from '../auth/roles.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { csvFile, moneyBr } from './csv'
 
@@ -29,7 +30,10 @@ const include = { items: true, payment: true } as const
 @UseGuards(AuthGuard)
 @Roles('ADMIN')
 export class OrdersHistoryController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   private parse(query: unknown) {
     const parsed = querySchema.safeParse(query)
@@ -71,9 +75,12 @@ export class OrdersHistoryController {
   @Get('export.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="pedidos.csv"')
-  async export(@Query() query: unknown) {
+  async export(@Query() query: unknown, @Req() req: { user: SessionUser; ip?: string }) {
     const f = this.parse(query)
     const orders = await this.prisma.order.findMany({ where: this.where(f), include, orderBy: { createdAt: 'desc' }, take: CSV_MAX_ROWS })
+    // Exportar dados em massa é exatamente o que se quer poder rastrear.
+    const { page: _p, pageSize: _s, ...filters } = f
+    await this.audit.record(actorOf(req), 'export.orders_csv', { meta: { rows: orders.length, filters }, ip: req.ip })
 
     const rows: unknown[][] = [
       ['Senha', 'Pedido', 'Data/hora', 'Status', 'Modo', 'Pagamento', 'Status do pagamento', 'Subtotal', 'Desconto', 'Total', 'Cupom', 'Código offline', 'Itens'],

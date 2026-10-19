@@ -190,3 +190,28 @@ model OrderEvent {
   to        OrderStatus
   createdAt DateTime    @default(now())
 }
+
+/// Tokens de sessão encerrados no logout. A linha some depois que o token expiraria de qualquer jeito.
+model RevokedToken {
+  jti       String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+/// Trilha de auditoria: quem fez o quê e quando. Nunca guarda senhas, tokens nem dados de clientes.
+model AuditLog {
+  id         String   @id @default(uuid())
+  at         DateTime @default(now())
+  actorId    String?
+  /// Cópia do e-mail no momento da ação (continua legível mesmo se o usuário for alterado depois).
+  actorEmail String?
+  action     String
+  entity     String?
+  entityId   String?
+  meta       Json?
+  ip         String?
+
+  @@index([at])
+  @@index([action])
+}

@@ -49,7 +49,7 @@ test('usuários: admin cria, a pessoa entra com acesso só da função, e desati
   // Admin desativa: a conexão em tempo real cai e o próximo acesso é recusado.
   await row.getByRole('checkbox', { name: /Desativar Maria/ }).click()
   await expect(row.getByText('Desativado')).toBeVisible()
-  await expect(maria.getByText('○ Reconectando…')).toBeVisible()
+  await expect(maria.getByRole('button', { name: 'Entrar' })).toBeVisible() // a tela dela volta ao login sozinha
   await maria.reload()
   await expect(maria.getByRole('button', { name: 'Entrar' })).toBeVisible()
   await login(maria, NEW_EMAIL, 'senha-inicial-2026')

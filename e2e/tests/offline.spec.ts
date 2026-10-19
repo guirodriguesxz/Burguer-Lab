@@ -39,8 +39,8 @@ test('PWA offline: o totem abre sem rede, aceita pedido no cartão e sincroniza 
   await expect(card).toContainText('Batata Frita')
 
   // Sem duplicar: exatamente um pedido com esse código.
-  const token = await (await request.post('/api/auth/login', { data: { email: 'admin@burgerlab.dev', password: 'admin123' } })).json()
-  const all = await (await request.get('/api/orders', { headers: { Authorization: `Bearer ${token.token}` } })).json()
+  await request.post('/api/auth/login', { data: { email: 'admin@burgerlab.dev', password: 'admin123' } })
+  const all = await (await request.get('/api/orders')).json()
   expect(all.filter((o: { clientRef: string }) => o.clientRef === code)).toHaveLength(1)
 
   await kitchen.context.close()

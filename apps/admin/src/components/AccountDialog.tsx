@@ -2,16 +2,8 @@ import { useState } from 'react'
 import { changePassword, type Session } from '../lib/api'
 import PasswordInput from './PasswordInput'
 
-/** "Alterar minha senha": pede a senha atual; as outras sessões caem e esta continua com um token novo. */
-export default function AccountDialog({
-  session,
-  onClose,
-  onToken,
-}: {
-  session: Session
-  onClose: () => void
-  onToken: (token: string) => void
-}) {
+/** "Alterar minha senha": pede a senha atual; as outras sessões caem e esta continua com um cookie novo. */
+export default function AccountDialog({ session, onClose }: { session: Session; onClose: () => void }) {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -25,8 +17,7 @@ export default function AccountDialog({
     setLoading(true)
     setError(null)
     try {
-      const { token } = await changePassword(session.token, current, next)
-      onToken(token)
+      await changePassword(current, next)
       setDone(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível trocar a senha')

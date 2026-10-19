@@ -160,3 +160,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .extras li { display: grid; grid-template-columns: 1fr 100px auto; gap: 8px; align-items: center; }
 .extra-new { display: grid; grid-template-columns: 1fr 100px auto; gap: 8px; margin-top: 8px; }
 .archive { align-self: flex-start; }
+
+.boot { padding: 40px; text-align: center; }
+.audit-details { font-size: .85rem; color: var(--muted); max-width: 420px; word-break: break-word; }

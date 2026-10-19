@@ -18,7 +18,7 @@ const PAYMENT: Record<string, string> = {
   REFUND_FAILED: 'Estorno falhou',
 }
 
-export default function OrdersHistory({ token }: { token: string }) {
+export default function OrdersHistory() {
   const [filters, setFilters] = useState<HistoryFilters>({})
   const [applied, setApplied] = useState<HistoryFilters>({})
   const [page, setPage] = useState(1)
@@ -28,10 +28,10 @@ export default function OrdersHistory({ token }: { token: string }) {
   const [busy, setBusy] = useState<string | null>(null)
 
   const load = useCallback(() => {
-    fetchHistory(token, { ...applied, page })
+    fetchHistory({ ...applied, page })
       .then((d) => (setData(d), setError(null)))
       .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar'))
-  }, [token, applied, page])
+  }, [applied, page])
 
   useEffect(load, [load])
 
@@ -49,7 +49,7 @@ export default function OrdersHistory({ token }: { token: string }) {
     setBusy(id)
     setError(null)
     try {
-      await refundOrder(token, id)
+      await refundOrder(id)
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao estornar')
@@ -64,7 +64,7 @@ export default function OrdersHistory({ token }: { token: string }) {
     <>
       <div className="toolbar">
         <h1>Pedidos</h1>
-        <button className="ghost" onClick={() => downloadHistoryCsv(token, applied).catch((e) => setError(e.message))}>
+        <button className="ghost" onClick={() => downloadHistoryCsv(applied).catch((e) => setError(e.message))}>
           ⬇️ Exportar CSV
         </button>
       </div>

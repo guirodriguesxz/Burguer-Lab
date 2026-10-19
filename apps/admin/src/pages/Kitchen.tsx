@@ -54,7 +54,7 @@ function Column({ title, orders, action, onAction, onPrint }: ColumnProps) {
   )
 }
 
-export default function Kitchen({ token }: { token: string }) {
+export default function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -62,18 +62,18 @@ export default function Kitchen({ token }: { token: string }) {
     setOrders((prev) => (prev.some((p) => p.id === o.id) ? prev.map((p) => (p.id === o.id ? o : p)) : [...prev, o]))
   }, [])
 
-  const online = useStaffSocket(token, {
+  const online = useStaffSocket({
     onCreated: upsert,
     onUpdated: upsert,
     onConnect: () => {
-      fetchOrders(token).then(setOrders).catch(() => undefined)
+      fetchOrders().then(setOrders).catch(() => undefined)
     },
   })
 
   const move = async (id: string, next: OrderStatus) => {
     setError(null)
     try {
-      upsert(await updateOrderStatus(token, id, next))
+      upsert(await updateOrderStatus(id, next))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao atualizar o pedido')
     }

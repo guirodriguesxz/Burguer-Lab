@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
@@ -36,7 +36,7 @@ export class AuthService {
 
     const payload: AuthUser = { sub: user.id, role: user.role, name: user.name, tv: user.tokenVersion }
     return {
-      token: await this.jwt.signAsync(payload),
+      token: await this.jwt.signAsync(payload, { jwtid: randomUUID() }),
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     }
   }
@@ -75,7 +75,7 @@ export class AuthService {
   }
 
   /** Troca a senha de quem está logado. Derruba as outras sessões e devolve um token novo para esta continuar. */
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  async changePassword(userId: string, currentPassword: string, newPassword: string, currentJti?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } })
     if (!user || !user.active) throw new UnauthorizedException('Sessão inválida')
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) throw new BadRequestException('Senha atual incorreta')
@@ -88,9 +88,9 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash: await bcrypt.hash(newPassword, 10), tokenVersion: { increment: 1 } },
     })
-    this.realtime.disconnectUser(userId) // a tela atual reconecta com o token novo
+    this.realtime.disconnectUser(userId, currentJti) // as outras sessões caem; esta segue com o cookie novo
     const payload: AuthUser = { sub: updated.id, role: updated.role, name: updated.name, tv: updated.tokenVersion }
-    return { token: await this.jwt.signAsync(payload) }
+    return { token: await this.jwt.signAsync(payload, { jwtid: randomUUID() }) }
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -115,5 +115,6 @@ export class AuthService {
       await tx.passwordResetToken.deleteMany({ where: { userId: record.userId, id: { not: record.id } } })
     })
     this.realtime.disconnectUser(record.userId)
+    return { id: record.user.id, email: record.user.email }
   }
 }

@@ -3,7 +3,7 @@ import { NestExpressApplication } from '@nestjs/platform-express'
 import { PrismaClient } from '@prisma/client'
 import { io, Socket } from 'socket.io-client'
 import request from 'supertest'
-import { bearer, createApp, loginAs, resetDb, sleep } from './helpers'
+import { bearer, createApp, loginAs, resetDb, sleep, tokenOf } from './helpers'
 
 /** WebSocket real: o acesso em tempo real também precisa ser cortado quando a sessão é revogada. */
 describe('tempo real e revogação de acesso (integração)', () => {
@@ -96,15 +96,23 @@ describe('tempo real e revogação de acesso (integração)', () => {
     expect(await disconnected(again)).toBe(true)
   })
 
-  it('trocar a senha derruba as conexões em tempo real antigas', async () => {
-    const s = connect(kitchen)
-    await connected(s)
+  it('trocar a senha derruba as conexões das outras sessões, mas não a de quem trocou', async () => {
+    const mine = connect(kitchen)
+    const mineUp = connected(mine) // arma a espera já: a conexão acontece enquanto o login abaixo roda
+    const loginRes = await request(app.getHttpServer()).post('/api/auth/login').send({ email: 'kitchen@test.dev', password: 'kitchen-pass' }).expect(201)
+    const otherToken = tokenOf(loginRes) // outra tela, outra sessão
+    const other = connect(otherToken)
+    await Promise.all([mineUp, connected(other)])
+
     await request(app.getHttpServer())
       .post('/api/auth/change-password')
       .set(bearer(kitchen))
       .send({ currentPassword: 'kitchen-pass', newPassword: 'nova-senha-2026' })
       .expect(200)
-    expect(await disconnected(s)).toBe(true)
+
+    expect(await disconnected(other)).toBe(true) // a outra sessão caiu
+    await sleep(300)
+    expect(mine.connected).toBe(true) // esta continua (recebe o cookie novo na mesma resposta)
   })
 
   it('renomear não derruba a conexão', async () => {

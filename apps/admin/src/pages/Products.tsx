@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react'
 import ProductEditor from '../components/ProductEditor'
 import { brl, fetchProducts, parseMoney, patchProduct, restoreProduct, type AdminProduct } from '../lib/api'
 
-function Row({ p, token, onSaved, onEdit }: { p: AdminProduct; token: string; onSaved: (p: AdminProduct) => void; onEdit: () => void }) {
+function Row({ p, onSaved, onEdit }: { p: AdminProduct; onSaved: (p: AdminProduct) => void; onEdit: () => void }) {
   const [price, setPrice] = useState((p.priceCents / 100).toFixed(2))
   const [stock, setStock] = useState(p.stock === null ? '' : String(p.stock))
   const [error, setError] = useState<string | null>(null)
 
-  const save = async (data: Parameters<typeof patchProduct>[2]) => {
+  const save = async (data: Parameters<typeof patchProduct>[1]) => {
     setError(null)
     try {
-      onSaved(await patchProduct(token, p.id, data))
+      onSaved(await patchProduct(p.id, data))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao salvar')
     }
@@ -50,7 +50,7 @@ function Row({ p, token, onSaved, onEdit }: { p: AdminProduct; token: string; on
   )
 }
 
-export default function Products({ token }: { token: string }) {
+export default function Products() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [editing, setEditing] = useState<AdminProduct | 'new' | null>(null)
@@ -58,10 +58,10 @@ export default function Products({ token }: { token: string }) {
 
   useEffect(() => {
     setProducts(null)
-    fetchProducts(token, showArchived)
+    fetchProducts(showArchived)
       .then(setProducts)
       .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar'))
-  }, [token, showArchived])
+  }, [showArchived])
 
   // atualiza (ou inclui) um produto na lista conforme o editor grava
   const upsert = (p: AdminProduct) =>
@@ -70,7 +70,7 @@ export default function Products({ token }: { token: string }) {
   const restore = async (p: AdminProduct) => {
     setError(null)
     try {
-      await restoreProduct(token, p.id)
+      await restoreProduct(p.id)
       setProducts((prev) => prev?.filter((x) => x.id !== p.id) ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao restaurar')
@@ -133,7 +133,7 @@ export default function Products({ token }: { token: string }) {
             </thead>
             <tbody>
               {products.map((p) => (
-                <Row key={`${p.id}:${p.priceCents}:${p.stock}:${p.name}`} p={p} token={token} onSaved={upsert} onEdit={() => setEditing(p)} />
+                <Row key={`${p.id}:${p.priceCents}:${p.stock}:${p.name}`} p={p} onSaved={upsert} onEdit={() => setEditing(p)} />
               ))}
             </tbody>
           </table>
@@ -142,7 +142,7 @@ export default function Products({ token }: { token: string }) {
 
       {editing && (
         <ProductEditor
-          token={token}
+         
           product={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={upsert}

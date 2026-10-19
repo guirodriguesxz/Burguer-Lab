@@ -3,7 +3,7 @@ import { brl, createCoupon, fetchCoupons, patchCoupon, type Coupon } from '../li
 
 const describe = (c: Coupon) => (c.type === 'PERCENT' ? `${c.value}% de desconto` : `${brl(c.value)} de desconto`)
 
-export default function Coupons({ token }: { token: string }) {
+export default function Coupons() {
   const [coupons, setCoupons] = useState<Coupon[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -15,17 +15,17 @@ export default function Coupons({ token }: { token: string }) {
   const [expires, setExpires] = useState('')
 
   useEffect(() => {
-    fetchCoupons(token)
+    fetchCoupons()
       .then(setCoupons)
       .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar'))
-  }, [token])
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     const num = parseFloat(value.replace(',', '.'))
     try {
-      const created = await createCoupon(token, {
+      const created = await createCoupon({
         code,
         type,
         // percentual em pontos inteiros; valor fixo digitado em reais vira centavos
@@ -43,7 +43,7 @@ export default function Coupons({ token }: { token: string }) {
 
   const toggle = async (c: Coupon) => {
     try {
-      const updated = await patchCoupon(token, c.id, { active: !c.active })
+      const updated = await patchCoupon(c.id, { active: !c.active })
       setCoupons((prev) => prev?.map((x) => (x.id === c.id ? updated : x)) ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao atualizar')

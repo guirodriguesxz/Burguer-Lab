@@ -16,7 +16,6 @@ import {
 } from '../lib/api'
 
 interface Props {
-  token: string
   /** null = novo produto */
   product: AdminProduct | null
   onClose: () => void
@@ -27,7 +26,7 @@ interface Props {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Algo deu errado')
 
-export default function ProductEditor({ token, product, onClose, onSaved, onArchived }: Props) {
+export default function ProductEditor({ product, onClose, onSaved, onArchived }: Props) {
   const [categories, setCategories] = useState<AdminCategory[]>([])
   const [name, setName] = useState(product?.name ?? '')
   const [emoji, setEmoji] = useState(product?.emoji ?? '🍔')
@@ -46,13 +45,13 @@ export default function ProductEditor({ token, product, onClose, onSaved, onArch
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    fetchCategories(token)
+    fetchCategories()
       .then((list) => {
         setCategories(list)
         setCategoryId((c) => c || list[0]?.id || '')
       })
       .catch((e) => setError(message(e)))
-  }, [token])
+  }, [])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -86,7 +85,7 @@ export default function ProductEditor({ token, product, onClose, onSaved, onArch
         removable,
         available,
       }
-      const result = saved ? await patchProduct(token, saved.id, data) : await createProduct(token, data)
+      const result = saved ? await patchProduct(saved.id, data) : await createProduct(data)
       setSaved(result)
       onSaved(result)
       if (!product) setError(null) // produto novo: segue aberto para cadastrar os adicionais
@@ -96,7 +95,7 @@ export default function ProductEditor({ token, product, onClose, onSaved, onArch
   const addExtra = () =>
     run(async () => {
       if (!saved) throw new Error('Salve o produto antes de adicionar adicionais')
-      const created = await createExtra(token, saved.id, { name: newExtra.name, priceCents: Math.max(0, parseMoney(newExtra.price || '0')) })
+      const created = await createExtra(saved.id, { name: newExtra.name, priceCents: Math.max(0, parseMoney(newExtra.price || '0')) })
       const next = [...extras, created]
       setExtras(next)
       setNewExtra({ name: '', price: '' })
@@ -107,13 +106,13 @@ export default function ProductEditor({ token, product, onClose, onSaved, onArch
     run(async () => {
       const priceCents = parseMoney(value)
       if (!(priceCents >= 0)) throw new Error('Preço inválido')
-      const updated = await patchExtra(token, extra.id, { priceCents })
+      const updated = await patchExtra(extra.id, { priceCents })
       setExtras(extras.map((x) => (x.id === extra.id ? updated : x)))
     })
 
   const removeExtra = (extra: AdminExtra) =>
     run(async () => {
-      await deleteExtra(token, extra.id)
+      await deleteExtra(extra.id)
       const next = extras.filter((x) => x.id !== extra.id)
       setExtras(next)
       if (saved) onSaved({ ...saved, extras: next })
@@ -122,7 +121,7 @@ export default function ProductEditor({ token, product, onClose, onSaved, onArch
   const addCategory = () =>
     run(async () => {
       if (!newCat) return
-      const created = await createCategory(token, newCat)
+      const created = await createCategory(newCat)
       setCategories([...categories, created])
       setCategoryId(created.id)
       setNewCat(null)
@@ -131,7 +130,7 @@ export default function ProductEditor({ token, product, onClose, onSaved, onArch
   const archive = () =>
     run(async () => {
       if (!saved || !window.confirm(`Excluir "${saved.name}"? Ele sai do cardápio, mas os pedidos antigos continuam no histórico.`)) return
-      await archiveProduct(token, saved.id)
+      await archiveProduct(saved.id)
       onArchived(saved.id)
       onClose()
     })

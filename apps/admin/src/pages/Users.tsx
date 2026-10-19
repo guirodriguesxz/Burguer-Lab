@@ -8,7 +8,7 @@ const ROLES: { value: Role; label: string }[] = [
   { value: 'CASHIER', label: 'Caixa' },
 ]
 
-export default function Users({ token, myId }: { token: string; myId: string }) {
+export default function Users({ myId }: { myId: string }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -19,10 +19,10 @@ export default function Users({ token, myId }: { token: string; myId: string }) 
   const [password, setPassword] = useState('')
 
   useEffect(() => {
-    fetchUsers(token)
+    fetchUsers()
       .then(setUsers)
       .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar'))
-  }, [token])
+  }, [])
 
   const run = async (fn: () => Promise<void>) => {
     setError(null)
@@ -39,7 +39,7 @@ export default function Users({ token, myId }: { token: string; myId: string }) 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     return run(async () => {
-      const created = await createUser(token, { name, email, role, password })
+      const created = await createUser({ name, email, role, password })
       setUsers((prev) => [...(prev ?? []), created])
       setName('')
       setEmail('')
@@ -107,7 +107,7 @@ export default function Users({ token, myId }: { token: string; myId: string }) 
                       aria-label={`Papel de ${u.name}`}
                       value={u.role}
                       disabled={me}
-                      onChange={(e) => run(async () => replace(await updateUser(token, u.id, { role: e.target.value as Role })))}
+                      onChange={(e) => run(async () => replace(await updateUser(u.id, { role: e.target.value as Role })))}
                     >
                       {ROLES.map((r) => (
                         <option key={r.value} value={r.value}>{r.label}</option>
@@ -121,7 +121,7 @@ export default function Users({ token, myId }: { token: string; myId: string }) 
                         checked={u.active}
                         disabled={me}
                         aria-label={`${u.active ? 'Desativar' : 'Ativar'} ${u.name}`}
-                        onChange={(e) => run(async () => replace(await updateUser(token, u.id, { active: e.target.checked })))}
+                        onChange={(e) => run(async () => replace(await updateUser(u.id, { active: e.target.checked })))}
                       />
                       {u.active ? 'Ativo' : 'Desativado'}
                     </label>
@@ -129,7 +129,7 @@ export default function Users({ token, myId }: { token: string; myId: string }) 
                   <td>
                     <button
                       className="ghost"
-                      onClick={() => run(async () => (await sendUserReset(token, u.id), setNotice(`Link de redefinição enviado para ${u.email}.`)))}
+                      onClick={() => run(async () => (await sendUserReset(u.id), setNotice(`Link de redefinição enviado para ${u.email}.`)))}
                     >
                       Enviar link de senha
                     </button>

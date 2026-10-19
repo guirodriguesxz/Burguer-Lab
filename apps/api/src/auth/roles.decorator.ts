@@ -10,4 +10,13 @@ export interface AuthUser {
   role: Role
   name: string
   tv: number
+  /** Identificador único do token: permite encerrar uma sessão específica (logout). */
+  jti?: string
+  /** Expiração (segundos desde 1970), preenchida pelo JWT. */
+  exp?: number
+}
+
+/** Usuário da requisição autenticada: o JWT mais os dados atuais do banco. */
+export interface SessionUser extends AuthUser {
+  email: string
 }

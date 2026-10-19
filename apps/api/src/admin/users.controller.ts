@@ -4,9 +4,12 @@ import { z } from 'zod'
 import { AuthGuard } from '../auth/auth.guard'
 import { AuthService } from '../auth/auth.service'
 import { checkPassword } from '../auth/password-policy'
-import { AuthUser, Roles } from '../auth/roles.decorator'
+import { actorOf, AuditService, diff } from '../audit/audit.service'
+import { Roles, SessionUser } from '../auth/roles.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
+
+type Req = { user: SessionUser; ip?: string }
 
 const roleSchema = z.enum(['ADMIN', 'KITCHEN', 'CASHIER'])
 
@@ -33,6 +36,7 @@ export class UsersController {
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
     private readonly realtime: RealtimeGateway,
+    private readonly audit: AuditService,
   ) {}
 
   @Get()
@@ -41,7 +45,7 @@ export class UsersController {
   }
 
   @Post()
-  async create(@Body() body: unknown) {
+  async create(@Body() body: unknown, @Req() req: Req) {
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
     const { name, role, password } = parsed.data
@@ -51,14 +55,16 @@ export class UsersController {
     if (!policy.ok) throw new BadRequestException(policy.reason)
     if (await this.prisma.user.findUnique({ where: { email } })) throw new ConflictException('Já existe um usuário com esse e-mail')
 
-    return this.prisma.user.create({
+    const created = await this.prisma.user.create({
       data: { name, email, role, passwordHash: await bcrypt.hash(password, 10) },
       select: publicFields,
     })
+    await this.audit.record(actorOf(req), 'user.create', { entity: 'User', entityId: created.id, meta: { email, role }, ip: req.ip })
+    return created
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() body: unknown, @Req() req: { user: AuthUser }) {
+  async update(@Param('id') id: string, @Body() body: unknown, @Req() req: Req) {
     const parsed = updateSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten())
     const target = await this.prisma.user.findUnique({ where: { id } })
@@ -83,16 +89,23 @@ export class UsersController {
       select: publicFields,
     })
     if (changesAccess) this.realtime.disconnectUser(id) // inclusive as conexões em tempo real já abertas
+    await this.audit.record(actorOf(req), 'user.update', {
+      entity: 'User',
+      entityId: id,
+      meta: { email: target.email, changes: diff({ name: target.name, role: target.role, active: target.active }, parsed.data) },
+      ip: req.ip,
+    })
     return updated
   }
 
   /** Envia ao usuário o link de redefinição de senha (mesmo fluxo do "esqueci minha senha"). */
   @Post(':id/send-reset')
   @HttpCode(200)
-  async sendReset(@Param('id') id: string) {
+  async sendReset(@Param('id') id: string, @Req() req: Req) {
     const user = await this.prisma.user.findUnique({ where: { id } })
     if (!user) throw new NotFoundException('Usuário não encontrado')
     await this.auth.requestPasswordReset(user.email)
+    await this.audit.record(actorOf(req), 'user.send_reset', { entity: 'User', entityId: id, meta: { email: user.email }, ip: req.ip })
     return { ok: true }
   }
 }
