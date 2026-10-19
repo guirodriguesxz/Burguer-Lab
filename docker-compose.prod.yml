@@ -38,6 +38,13 @@ services:
       # Opcional: envio real de e-mail via Resend. Sem isso o link de redefinição aparece só no log do container.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # Pix real via Mercado Pago (opcional; vazio = simulador)
+      PIX_PROVIDER: ${PIX_PROVIDER:-}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      CASHIER_EMAIL: ${CASHIER_EMAIL:-}
+      CASHIER_PASSWORD: ${CASHIER_PASSWORD:-}
       KITCHEN_EMAIL: ${KITCHEN_EMAIL:-}
       KITCHEN_PASSWORD: ${KITCHEN_PASSWORD:-}
 

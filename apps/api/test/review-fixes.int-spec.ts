@@ -58,7 +58,7 @@ describe('correções da revisão (integração)', () => {
       expect(results.map((r) => r.status).sort()).toEqual([200, 409])
     })
 
-    it('Pix cancelado antes de pagar: cobrança deixa de valer e o webhook tardio não ressuscita o pedido', async () => {
+    it('Pix cancelado antes de pagar: o webhook tardio não ressuscita o pedido e o valor é estornado', async () => {
       const { body } = await order({ method: 'PIX', items: [{ productId: 'fries', qty: 1 }] }).expect(201)
       await move(body.id, 'CANCELED', admin).expect(200)
       expect(await stock('fries')).toBe(5)
@@ -69,8 +69,9 @@ describe('correções da revisão (integração)', () => {
         .set('Content-Type', 'application/json')
         .set('x-signature', signPayload('test-webhook-secret', raw))
         .send(raw)
-        .expect(409)
+        .expect(200)
       expect((await prisma.order.findUnique({ where: { id: body.id } }))!.status).toBe('CANCELED')
+      expect((await prisma.payment.findUnique({ where: { orderId: body.id } }))!.status).toBe('REFUNDED')
     })
 
     it('o relatório só conta pedidos pagos (Pix pendente e cancelados ficam de fora)', async () => {

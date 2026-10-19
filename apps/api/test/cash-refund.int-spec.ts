@@ -32,6 +32,7 @@ describe('pagamento no caixa e estornos (integração)', () => {
       b.overrideProvider(PixProvider).useValue({
         createCharge: async ({ txid }: { txid: string }) => ({ payload: `pix-${txid}`, expiresAt: new Date(Date.now() + 300_000) }),
         refund,
+        cancelCharge: async () => undefined,
       }),
     )
   })
@@ -138,7 +139,7 @@ describe('pagamento no caixa e estornos (integração)', () => {
       await payPix(body.payment.txid, body.totalCents).expect(200)
 
       const res = await patch(body.id, 'CANCELED', admin).expect(200)
-      expect(refund).toHaveBeenCalledWith({ txid: body.payment.txid, amountCents: 1490 })
+      expect(refund).toHaveBeenCalledWith({ txid: body.payment.txid, providerRef: null, amountCents: 1490 })
       expect(res.body.payment).toMatchObject({ status: 'REFUNDED', refundId: 'refund-1' })
       expect(res.body.payment.refundedAt).toBeTruthy()
     })

@@ -64,8 +64,14 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const payment = await this.prisma.payment.findUnique({ where: { txid } })
     if (!payment) throw new NotFoundException('Cobrança não encontrada')
     if (payment.amountCents !== amountCents) throw new BadRequestException('Valor diferente do cobrado')
-    if (payment.status === 'PAID') return { ok: true, alreadyProcessed: true }
-    if (payment.status === 'EXPIRED') throw new ConflictException('Cobrança expirada: o pedido foi cancelado')
+    if (payment.status === 'PAID' || payment.status === 'REFUNDED' || payment.status === 'REFUND_FAILED') {
+      return { ok: true, alreadyProcessed: true }
+    }
+    if (payment.status === 'EXPIRED') {
+      // O dinheiro chegou depois de o pedido ser cancelado: não há o que preparar, então devolve na hora.
+      await this.refundLatePayment(payment)
+      return { ok: true, alreadyProcessed: false }
+    }
 
     const confirmed = await this.prisma.$transaction(async (tx) => {
       // Só um vencedor entre confirmação e expiração concorrentes.
@@ -85,6 +91,25 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (!confirmed) return this.confirmPix(txid, amountCents)
     this.realtime.orderCreated(confirmed)
     return { ok: true, alreadyProcessed: false }
+  }
+
+  /**
+   * Pagamento que chegou depois de a cobrança expirar (ou de o pedido ser cancelado). O pedido continua
+   * cancelado e o valor é estornado automaticamente. Se o estorno falhar, fica REFUND_FAILED para o admin
+   * tentar de novo. Responder 200 ao provedor evita que ele reenvie o aviso indefinidamente.
+   */
+  private async refundLatePayment(payment: { id: string; orderId: string; txid: string | null; providerRef: string | null; amountCents: number }) {
+    this.log.warn(`Pagamento tardio da cobrança ${payment.txid}: estornando`)
+    await this.prisma.payment.update({ where: { id: payment.id }, data: { status: 'PAID', paidAt: new Date() } })
+    await this.refundPayment(payment.orderId)
+  }
+
+  /** Cancela a cobrança no provedor (melhor esforço), para que ninguém a pague depois de o pedido expirar. */
+  async cancelProviderCharge(payment: { txid: string | null; providerRef: string | null; amountCents: number }) {
+    if (!payment.txid) return
+    await this.pix
+      .cancelCharge({ txid: payment.txid, providerRef: payment.providerRef, amountCents: payment.amountCents })
+      .catch((e) => this.log.warn(`Falha ao cancelar cobrança no provedor: ${e instanceof Error ? e.message : e}`))
   }
 
   /**
@@ -130,7 +155,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     try {
       const { refundId } =
         payment.method === 'PIX' && payment.txid
-          ? await this.pix.refund({ txid: payment.txid, amountCents: payment.amountCents })
+          ? await this.pix.refund({ txid: payment.txid, providerRef: payment.providerRef, amountCents: payment.amountCents })
           : { refundId: `manual-${payment.method.toLowerCase()}` }
       return await this.prisma.payment.update({
         where: { id: payment.id },
@@ -151,6 +176,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     })
 
     let expired = 0
+    const expiredPayments: typeof pending = []
     for (const p of pending) {
       const done = await this.prisma.$transaction(async (tx) => {
         const claim = await tx.payment.updateMany({ where: { id: p.id, status: 'PENDING' }, data: { status: 'EXPIRED' } })
@@ -163,8 +189,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         await releaseOrder(tx, p.order)
         return true
       })
-      if (done) expired++
+      if (done) {
+        expired++
+        expiredPayments.push(p)
+      }
     }
+    for (const p of expiredPayments) await this.cancelProviderCharge(p)
 
     if (expired > 0) this.realtime.menuChanged()
     return expired

@@ -87,7 +87,7 @@ describe('Pix, webhook e expiração (integração)', () => {
     expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('PAID')
   })
 
-  it('cobrança expirada cancela o pedido, devolve estoque e cupom, e recusa webhook tardio', async () => {
+  it('cobrança expirada cancela o pedido, devolve estoque e cupom, e estorna pagamento tardio', async () => {
     process.env.PIX_TTL_SECONDS = '1'
     let order
     try {
@@ -107,8 +107,11 @@ describe('Pix, webhook e expiração (integração)', () => {
     expect((await prisma.product.findUnique({ where: { id: 'fries' } }))!.stock).toBe(5)
     expect((await prisma.coupon.findUnique({ where: { code: 'PCT10' } }))!.usedCount).toBe(0)
 
-    await webhook({ txid: order.payment.txid, status: 'PAID', amountCents: order.totalCents }).expect(409)
+    // O cliente pagou tarde: o pedido segue cancelado e o dinheiro é estornado automaticamente.
+    await webhook({ txid: order.payment.txid, status: 'PAID', amountCents: order.totalCents }).expect(200)
     expect(await kitchenOrders()).toHaveLength(0)
+    expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('CANCELED')
+    expect(await prisma.payment.findUnique({ where: { txid: order.payment.txid } })).toMatchObject({ status: 'REFUNDED' })
   })
 
   it('cobrança ainda válida não expira', async () => {

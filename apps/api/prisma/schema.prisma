@@ -128,6 +128,8 @@ model Payment {
   method      PayMethod
   amountCents Int
   idempotencyKey String? @unique
+  /// Id da cobrança no provedor Pix (ex.: id do pagamento no Mercado Pago).
+  providerRef String?  @unique
   status      PaymentStatus @default(PAID)
   txid        String?   @unique
   pixPayload  String?

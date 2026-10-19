@@ -17,6 +17,15 @@ services:
         generateValue: true
       - key: PIX_WEBHOOK_SECRET
         generateValue: true
+      # Pix real (opcional). Sem PIX_PROVIDER o sistema usa o simulador.
+      - key: PIX_PROVIDER
+        sync: false
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
       - key: SEED_ON_BOOT
         value: "true"
       - key: ADMIN_URL

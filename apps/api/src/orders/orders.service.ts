@@ -92,6 +92,7 @@ export class OrdersService {
           status: 'PENDING' as const,
           txid,
           pixPayload: charge.payload,
+          providerRef: charge.providerRef,
           expiresAt: charge.expiresAt,
           idempotencyKey,
         }
@@ -172,6 +173,11 @@ export class OrdersService {
       }
       return tx.order.findUniqueOrThrow({ where: { id }, include })
     })
+
+    // Pix ainda não pago: cancela a cobrança no provedor para ninguém pagar um pedido cancelado.
+    if (to === 'CANCELED' && order.payment?.method === 'PIX' && order.payment.status === 'PENDING') {
+      await this.payments.cancelProviderCharge(order.payment)
+    }
 
     // Cancelar um pedido já pago devolve o dinheiro (estorno). Fora da transação: pode falar com o provedor.
     let result = updated

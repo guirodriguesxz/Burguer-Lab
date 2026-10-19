@@ -43,6 +43,12 @@ flowchart LR
 - **Expiração**: cobranças não pagas expiram (5 min), cancelam o pedido e devolvem estoque e uso de cupom; webhook tardio em cobrança expirada é recusado (409).
 - **Cupons**: regras puras e testadas; a prévia no totem não consome o cupom, e o uso é reservado de forma **atômica** (`UPDATE ... WHERE usedCount < maxUses`), então pedidos simultâneos não passam do limite.
 
+**Estornos e caixa**
+- Cancelar um pedido já pago **estorna** o pagamento: Pix pelo provedor; cartão e dinheiro são devolvidos manualmente pela equipe (o sistema registra). Se o provedor falhar, o pagamento fica `REFUND_FAILED` e o admin tenta de novo. Pedido já entregue pode ter só o pagamento estornado (sem devolver estoque). Os relatórios descontam estornos.
+- **Pagamento no caixa (dinheiro)**: o totem gera a senha e o pedido nasce pendente (expira em 15 min); o perfil **Caixa** vê os pedidos ao vivo, confirma o recebimento (fica registrado quem recebeu) e só então o pedido vai para a cozinha. O caixa só pode cancelar pedidos pendentes. Funciona também com o totem offline.
+
+**Pix real (Mercado Pago)**: com `PIX_PROVIDER=mercadopago` o sistema cria a cobrança na API do Mercado Pago, recebe o webhook em `/api/webhooks/mercadopago` (assinatura `x-signature` com HMAC-SHA256 do manifest `id;request-id;ts`, tolerância de 15 min) e **confirma consultando o pagamento na API** (id do provedor, valor e referência precisam conferir), então um aviso forjado ou um pagamento alheio com a mesma referência não confirma pedido. Como o Mercado Pago exige validade mínima de 30 min e o pedido expira em 5, a cobrança é cancelada no provedor ao expirar e, se alguém pagar mesmo assim, o valor é **estornado automaticamente**. *Atenção: esta integração foi escrita e testada contra respostas simuladas conforme a documentação; valide com as credenciais de teste (sandbox) da sua conta antes de usar em produção.*
+
 **Tempo real e offline**
 - **Socket.IO** com handshake autenticado por JWT: só equipe entra na sala `staff`; o totem recebe `menu:changed`. Ao reconectar, a cozinha ressincroniza via REST.
 - **PWA**: service worker guarda o app shell; cardápio com cópia local; Pix e cupom ficam indisponíveis sem rede; pedidos no cartão entram na fila com `Idempotency-Key` e um código curto (`clientRef`) mostrado ao cliente e na cozinha. Limitação conhecida: vendas offline podem esgotar um estoque que o totem ainda não sabia.
@@ -75,7 +81,7 @@ npm run dev:kiosk   # http://localhost:5173
 npm run dev:admin   # http://localhost:5174
 ```
 
-Usuários de desenvolvimento (seed): `admin@burgerlab.dev` / `admin123` e `cozinha@burgerlab.dev` / `cozinha123`. Cupons de exemplo: `BEMVINDO10`, `LANCHE5` (mínimo R$ 30), `ULTIMO` (1 uso). Em dev, o totem mostra um botão para simular o banco confirmando o Pix.
+Usuários de desenvolvimento (seed): `admin@burgerlab.dev` / `admin123`, `cozinha@burgerlab.dev` / `cozinha123` e `caixa@burgerlab.dev` / `caixa123`. Cupons de exemplo: `BEMVINDO10`, `LANCHE5` (mínimo R$ 30), `ULTIMO` (1 uso). Em dev, o totem mostra um botão para simular o banco confirmando o Pix.
 
 ## Testes
 
@@ -114,7 +120,11 @@ A imagem aplica as migrações ao iniciar e, com `SEED_ON_BOOT=true`, faz o seed
 | `SEED_ON_BOOT` | `true` para rodar o seed ao iniciar o container (em produção só cria usuários que faltam; não sobrescreve senhas) |
 | `ADMIN_URL` | endereço público do app da equipe, usado no link de redefinição (ex.: `https://loja.com/admin/`) |
 | `RESEND_API_KEY`, `MAIL_FROM` | envio real de e-mail (opcional; sem isso o link vai para o log) |
-| `PIX_TTL_SECONDS` | validade da cobrança Pix (padrão 300) |
+| `PIX_TTL_SECONDS`, `CASH_TTL_SECONDS` | validade do Pix (padrão 300) e do pedido no caixa (padrão 900) |
+| `PIX_PROVIDER` | `mercadopago` para Pix real; vazio usa o simulador |
+| `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `PUBLIC_API_URL` | credenciais do Mercado Pago (access token, segredo do webhook do painel) e URL pública da API; obrigatórias com `PIX_PROVIDER=mercadopago` |
+| `MP_PAYER_EMAIL` | e-mail de pagador enviado ao Mercado Pago (a API exige; padrão genérico) |
+| `CASHIER_EMAIL`, `CASHIER_PASSWORD` | conta do caixa criada pelo seed de produção (opcional) |
 | `LOGIN_RATE_LIMIT`, `RESET_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `COUPON_RATE_LIMIT`, `RATE_LIMIT` | limites por minuto e por IP (padrões: 5, 5, 40, 20, 120) |
 | `CORS_ORIGIN` | origens permitidas, separadas por vírgula (padrão: qualquer) |
 
