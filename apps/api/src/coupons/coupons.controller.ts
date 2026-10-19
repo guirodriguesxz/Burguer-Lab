@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, HttpCode, Post } from '@nestjs/common'
+import { BadRequestException, Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common'
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
 import { z } from 'zod'
 import { PricingService } from '../orders/pricing.service'
 import { orderItemSchema } from '../orders/orders.dto'
@@ -20,6 +21,8 @@ export class CouponsController {
   /** Pré-visualiza o desconto no totem. Não consome o cupom: o uso é reservado ao criar o pedido. */
   @Post('validate')
   @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: Number(process.env.COUPON_RATE_LIMIT ?? 20), ttl: 60_000 } })
   async validate(@Body() body: unknown) {
     const parsed = validateSchema.safeParse(body)
     if (!parsed.success) throw new BadRequestException('Dados inválidos')

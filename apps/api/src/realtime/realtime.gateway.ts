@@ -1,30 +1,27 @@
 import { Injectable } from '@nestjs/common'
-import { JwtService } from '@nestjs/jwt'
 import { OnGatewayConnection, WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
 import { Server, Socket } from 'socket.io'
-import { AuthUser } from '../auth/roles.decorator'
+import { SessionService } from '../auth/session.service'
+import { corsOrigin } from '../cors'
 
 /**
  * Eventos em tempo real.
- * - Sala "staff" (cozinha/admin, exige JWT no handshake): order:created, order:updated
+ * - Sala "staff" (cozinha/admin, exige JWT válido no handshake): order:created, order:updated
  * - Broadcast público: menu:changed (totem recarrega estoque/disponibilidade)
  */
 @Injectable()
-@WebSocketGateway({ cors: { origin: true } })
+@WebSocketGateway({ cors: { origin: corsOrigin() } })
 export class RealtimeGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server
 
-  constructor(private readonly jwt: JwtService) {}
+  constructor(private readonly sessions: SessionService) {}
 
   async handleConnection(client: Socket) {
     const token = client.handshake.auth?.token as string | undefined
     if (!token) return // conexão pública: só recebe eventos de broadcast
-    try {
-      const user = await this.jwt.verifyAsync<AuthUser>(token)
-      if (user.role === 'ADMIN' || user.role === 'KITCHEN') await client.join('staff')
-    } catch {
-      client.disconnect(true)
-    }
+    const user = await this.sessions.verify(token)
+    if (!user) return client.disconnect(true)
+    if (user.role === 'ADMIN' || user.role === 'KITCHEN') await client.join('staff')
   }
 
   orderCreated(order: unknown) {

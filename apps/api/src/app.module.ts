@@ -9,11 +9,13 @@ import { AdminModule } from './admin/admin.module'
 import { PaymentsModule } from './payments/payments.module'
 import { CouponsModule } from './coupons/coupons.module'
 import { HealthController } from './health/health.controller'
+import { MailModule } from './mail/mail.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    MailModule,
     AuthModule,
     RealtimeModule,
     MenuModule,

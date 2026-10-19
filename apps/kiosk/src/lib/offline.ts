@@ -59,7 +59,10 @@ export async function flushQueue() {
       try {
         await sendOrder(next.payload, next.key)
       } catch (e) {
-        if (!(e instanceof ApiError)) break
+        // Rede fora, erro do servidor (5xx), "devagar" (429) ou timeout (408) são temporários: o pedido
+        // continua na fila para a próxima tentativa. Só uma recusa definitiva (4xx) tira o pedido da fila.
+        const transient = !(e instanceof ApiError) || e.status >= 500 || e.status === 429 || e.status === 408
+        if (transient) break
         write(FAILED_KEY, [...read<unknown[]>(FAILED_KEY, []), { ...next, reason: e.message }])
       }
       queue = rest

@@ -1,14 +1,14 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { JwtService } from '@nestjs/jwt'
 import { Role } from '@prisma/client'
-import { AuthUser, ROLES_KEY } from './roles.decorator'
+import { ROLES_KEY } from './roles.decorator'
+import { SessionService } from './session.service'
 
-/** Valida o JWT (Bearer) e, se a rota declarar @Roles, exige um dos papéis informados (RBAC). */
+/** Valida o JWT (Bearer) contra o banco e, se a rota declarar @Roles, exige um dos papéis informados (RBAC). */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
-    private readonly jwt: JwtService,
+    private readonly sessions: SessionService,
     private readonly reflector: Reflector,
   ) {}
 
@@ -17,12 +17,8 @@ export class AuthGuard implements CanActivate {
     const token = (req.headers.authorization as string | undefined)?.replace(/^Bearer /, '')
     if (!token) throw new UnauthorizedException('Token ausente')
 
-    let user: AuthUser
-    try {
-      user = await this.jwt.verifyAsync<AuthUser>(token)
-    } catch {
-      throw new UnauthorizedException('Token inválido ou expirado')
-    }
+    const user = await this.sessions.verify(token)
+    if (!user) throw new UnauthorizedException('Sessão inválida ou expirada')
 
     const roles = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()])
     if (roles?.length && !roles.includes(user.role)) throw new ForbiddenException('Sem permissão')

@@ -1,15 +1,16 @@
 import { NestExpressApplication } from '@nestjs/platform-express'
-import { Test } from '@nestjs/testing'
+import { Test, TestingModuleBuilder } from '@nestjs/testing'
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
 import request from 'supertest'
 
 /** Sobe a aplicação real (mesmas regras de produção), sem abrir porta. */
-export async function createApp() {
+export async function createApp(customize?: (builder: TestingModuleBuilder) => TestingModuleBuilder) {
   // import dinâmico: garante que as variáveis de ambiente do teste já foram definidas
   const { AppModule } = await import('../src/app.module')
   const { configureApp } = await import('../src/app.setup')
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile()
+  const builder = Test.createTestingModule({ imports: [AppModule] })
+  const moduleRef = await (customize ? customize(builder) : builder).compile()
   const app = moduleRef.createNestApplication<NestExpressApplication>({ rawBody: true })
   configureApp(app)
   await app.init()

@@ -3,10 +3,11 @@ import { join } from 'node:path'
 import { INestApplication } from '@nestjs/common'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import helmet from 'helmet'
+import { corsOrigin } from './cors'
 
 /** Configuração compartilhada entre a aplicação real e os testes de integração. */
 export function configureApp(app: INestApplication) {
-  app.enableCors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true })
+  app.enableCors({ origin: corsOrigin() })
   app.setGlobalPrefix('api')
 }
 

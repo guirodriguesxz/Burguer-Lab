@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common'
+import { OrderStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
 const TZ = 'America/Sao_Paulo'
+/** Só pedidos efetivamente pagos entram na receita (Pix pendente e cancelados ficam de fora). */
+const PAID_STATUSES: OrderStatus[] = ['PAID', 'PREPARING', 'READY', 'DELIVERED']
 
 @Injectable()
 export class ReportsService {
@@ -13,7 +16,7 @@ export class ReportsService {
 
     const [totals, byHourRaw, byDayRaw, top] = await Promise.all([
       this.prisma.order.aggregate({
-        where: { createdAt: { gte: since }, status: { not: 'CANCELED' } },
+        where: { createdAt: { gte: since }, status: { in: PAID_STATUSES } },
         _sum: { totalCents: true },
         _count: true,
       }),
@@ -22,14 +25,14 @@ export class ReportsService {
                COUNT(*)::int AS orders,
                COALESCE(SUM("totalCents"), 0)::int AS revenue
         FROM "Order"
-        WHERE "createdAt" >= ${since} AND status <> 'CANCELED'
+        WHERE "createdAt" >= ${since} AND status::text IN ('PAID','PREPARING','READY','DELIVERED')
         GROUP BY 1 ORDER BY 1`,
       this.prisma.$queryRaw<{ day: string; orders: number; revenue: number }[]>`
         SELECT to_char((("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${TZ})::date, 'YYYY-MM-DD') AS day,
                COUNT(*)::int AS orders,
                COALESCE(SUM("totalCents"), 0)::int AS revenue
         FROM "Order"
-        WHERE "createdAt" >= ${since} AND status <> 'CANCELED'
+        WHERE "createdAt" >= ${since} AND status::text IN ('PAID','PREPARING','READY','DELIVERED')
         GROUP BY 1 ORDER BY 1`,
       this.prisma.$queryRaw<{ name: string; qty: number; revenue: number }[]>`
         SELECT oi."productName" AS name,
@@ -37,7 +40,7 @@ export class ReportsService {
                SUM(oi.qty * oi."unitPriceCents")::int AS revenue
         FROM "OrderItem" oi
         JOIN "Order" o ON o.id = oi."orderId"
-        WHERE o."createdAt" >= ${since} AND o.status <> 'CANCELED'
+        WHERE o."createdAt" >= ${since} AND o.status::text IN ('PAID','PREPARING','READY','DELIVERED')
         GROUP BY 1 ORDER BY qty DESC LIMIT 5`,
     ])
 

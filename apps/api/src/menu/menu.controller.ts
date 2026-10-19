@@ -11,7 +11,7 @@ export class MenuController {
    */
   @Get('upsell')
   async upsell(@Query('productIds') productIds = '') {
-    const inCart = productIds.split(',').filter(Boolean)
+    const inCart = productIds.split(',').filter(Boolean).slice(0, 30).map((id) => id.slice(0, 64))
     const cartProducts = await this.prisma.product.findMany({ where: { id: { in: inCart } }, select: { categoryId: true } })
     const has = new Set(cartProducts.map((p) => p.categoryId))
     const hasCombo = has.has('combos')

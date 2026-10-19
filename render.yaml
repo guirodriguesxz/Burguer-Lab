@@ -19,6 +19,10 @@ services:
         generateValue: true
       - key: SEED_ON_BOOT
         value: "true"
+      - key: ADMIN_URL
+        # Endereço público do app da equipe, usado no link do e-mail de redefinição de senha.
+        # Ex.: https://burger-lab.onrender.com/admin/
+        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

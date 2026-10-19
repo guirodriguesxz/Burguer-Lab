@@ -45,7 +45,7 @@ export async function openStaff(browser: Browser, who: keyof typeof CREDS = 'kit
   const page = await context.newPage()
   await page.goto('/admin/')
   await page.getByLabel('E-mail').fill(CREDS[who].email)
-  await page.getByLabel('Senha').fill(CREDS[who].password)
+  await page.getByLabel('Senha', { exact: true }).fill(CREDS[who].password)
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByText('● Ao vivo')).toBeVisible()
   return { page, context }

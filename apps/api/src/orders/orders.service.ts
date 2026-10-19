@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { CreateOrderDto } from './orders.dto'
 import { canTransition } from './order-state'
+import { releaseOrder } from './order-release'
 import { PricingService } from './pricing.service'
 
 const include = { items: true, payment: true } as const
@@ -107,12 +108,15 @@ export class OrdersService {
     return order
   }
 
-  list(status?: OrderStatus[]) {
-    return this.prisma.order.findMany({
+  /** Limitada às 500 mais recentes: a listagem não cresce sem limite conforme o histórico aumenta. */
+  async list(status?: OrderStatus[]) {
+    const recent = await this.prisma.order.findMany({
       where: status ? { status: { in: status } } : undefined,
       include,
-      orderBy: { number: 'asc' },
+      orderBy: { number: 'desc' },
+      take: 500,
     })
+    return recent.reverse()
   }
 
   /** Consulta pública e mínima, usada pelo totem para aguardar a confirmação do Pix. */
@@ -129,17 +133,28 @@ export class OrdersService {
   }
 
   async transition(id: string, to: OrderStatus) {
-    const order = await this.prisma.order.findUnique({ where: { id } })
+    const order = await this.prisma.order.findUnique({ where: { id }, include: { items: true } })
     if (!order) throw new NotFoundException('Pedido não encontrado')
     if (!canTransition(order.status, to)) {
       throw new ConflictException(`Transição inválida: ${order.status} → ${to}`)
     }
-    const updated = await this.prisma.order.update({
-      where: { id },
-      data: { status: to, history: { create: { from: order.status, to } } },
-      include,
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Troca condicionada ao status lido: se duas telas agirem ao mesmo tempo, só uma vence.
+      const claim = await tx.order.updateMany({ where: { id, status: order.status }, data: { status: to } })
+      if (claim.count === 0) throw new ConflictException('O pedido mudou de status. Atualize e tente de novo.')
+      await tx.orderEvent.create({ data: { orderId: id, from: order.status, to } })
+
+      if (to === 'CANCELED') {
+        // Pedido cancelado devolve o estoque e o cupom; uma cobrança Pix ainda pendente deixa de valer.
+        await releaseOrder(tx, order)
+        await tx.payment.updateMany({ where: { orderId: id, status: 'PENDING' }, data: { status: 'EXPIRED' } })
+      }
+      return tx.order.findUniqueOrThrow({ where: { id }, include })
     })
+
     this.realtime.orderUpdated(updated)
+    if (to === 'CANCELED') this.realtime.menuChanged()
     return updated
   }
 }

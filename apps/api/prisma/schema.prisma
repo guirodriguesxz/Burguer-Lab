@@ -37,7 +37,23 @@ model User {
   name         String
   passwordHash String
   role         Role
+  /// Incrementa ao trocar a senha: invalida todos os JWTs emitidos antes.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
+  resetTokens  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// SHA-256 do token enviado ao usuário; o token em si nunca é guardado.
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Category {
@@ -79,12 +95,14 @@ model Order {
   totalCents Int
   discountCents Int       @default(0)
   couponCode String?
-  clientRef  String?     @unique
+  clientRef  String?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   items      OrderItem[]
   payment    Payment?
   history    OrderEvent[]
+
+  @@index([clientRef])
 }
 
 model OrderItem {

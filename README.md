@@ -49,8 +49,11 @@ flowchart LR
 
 **Segurança**
 - JWT (8h) + RBAC (`ADMIN`, `KITCHEN`), senhas com bcrypt, mensagem de login única (não revela e-mails existentes), **rate limit no login**, `helmet` (CSP, HSTS, etc.), validação de entrada com Zod.
+- Rate limit também em criar pedido, validar cupom e redefinição de senha; CORS fechado em produção (front-ends são servidos pela própria API); filtros e tamanhos de entrada validados.
 - Em produção a API **recusa iniciar sem `JWT_SECRET`/`PIX_WEBHOOK_SECRET`**, o seed não cria contas de demonstração (exige `ADMIN_EMAIL`/`ADMIN_PASSWORD` de 12+ caracteres) e o simulador de pagamento não existe.
 - Container roda como usuário não-root.
+
+**Redefinição de senha**: "Esqueci minha senha" no login envia um link com token aleatório (256 bits, guardado só como hash SHA-256, válido por 30 min e uma única vez; um novo pedido invalida o anterior). A resposta é idêntica exista o e-mail ou não, há limite de pedidos por IP e por e-mail, e a nova senha segue uma política (10 a 72 caracteres, letras e números). Trocar a senha **derruba as sessões abertas** (`tokenVersion` no JWT conferido no banco a cada requisição, inclusive no WebSocket), e o papel (`role`) também vale o do banco, não o do token. O envio é uma interface (`Mailer`): com `RESEND_API_KEY` e `MAIL_FROM` usa o Resend; sem isso o link vai para o log da aplicação (suficiente para demo).
 
 **Relatórios**: agregações em SQL no fuso `America/Sao_Paulo` (há teste de regressão para conversão de fuso).
 
@@ -79,7 +82,7 @@ Usuários de desenvolvimento (seed): `admin@burgerlab.dev` / `admin123` e `cozin
 | Camada | Comando | O que cobre |
 | --- | --- | --- |
 | Unitários | `npm test -w @burger-lab/api` | máquina de estados, regras de cupom, assinatura de webhook |
-| Integração | `npm run test:int -w @burger-lab/api` | API inteira contra Postgres real: preço/estoque/rollback, corrida pela última unidade, idempotência, Pix + webhook + expiração, cupons concorrentes, RBAC, rate limit, relatórios |
+| Integração | `npm run test:int -w @burger-lab/api` | API inteira contra Postgres real: preço/estoque/rollback, corrida pela última unidade, idempotência, Pix + webhook + expiração, cupons concorrentes, RBAC e revogação de sessão, redefinição de senha, rate limit, relatórios, regressões da revisão de segurança |
 | E2E | `npm run build && npm run test:e2e` | Chrome real contra o artefato de produção: pedido com cupom e cozinha ao vivo, Pix com webhook assinado, **PWA offline com sincronização**, RBAC e cardápio em tempo real |
 
 `npm test` roda unitários + integração. Os testes de integração usam o banco `burgerlab_test` e o E2E recria `burgerlab_e2e` a cada execução (precisam do Postgres de desenvolvimento no ar). O E2E usa o Google Chrome instalado (`channel: 'chrome'`), sem baixar navegadores.
@@ -108,9 +111,11 @@ A imagem aplica as migrações ao iniciar e, com `SEED_ON_BOOT=true`, faz o seed
 | `DATABASE_URL` | conexão PostgreSQL |
 | `JWT_SECRET`, `PIX_WEBHOOK_SECRET` | segredos (obrigatórios em produção) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `KITCHEN_EMAIL`, `KITCHEN_PASSWORD` | contas criadas pelo seed de produção |
-| `SEED_ON_BOOT` | `true` para rodar o seed ao iniciar o container |
+| `SEED_ON_BOOT` | `true` para rodar o seed ao iniciar o container (em produção só cria usuários que faltam; não sobrescreve senhas) |
+| `ADMIN_URL` | endereço público do app da equipe, usado no link de redefinição (ex.: `https://loja.com/admin/`) |
+| `RESEND_API_KEY`, `MAIL_FROM` | envio real de e-mail (opcional; sem isso o link vai para o log) |
 | `PIX_TTL_SECONDS` | validade da cobrança Pix (padrão 300) |
-| `LOGIN_RATE_LIMIT`, `RATE_LIMIT` | tentativas de login/min e requisições/min por IP |
+| `LOGIN_RATE_LIMIT`, `RESET_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `COUPON_RATE_LIMIT`, `RATE_LIMIT` | limites por minuto e por IP (padrões: 5, 5, 40, 20, 120) |
 | `CORS_ORIGIN` | origens permitidas, separadas por vírgula (padrão: qualquer) |
 
 ## Roadmap

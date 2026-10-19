@@ -71,7 +71,8 @@ async function main() {
     const passwordHash = await bcrypt.hash(u.password, 10)
     await prisma.user.upsert({
       where: { email: u.email },
-      update: { name: u.name, role: u.role, passwordHash },
+      // Em produção só cria: reiniciar o container não pode desfazer uma senha redefinida pelo próprio usuário.
+      update: isProd ? {} : { name: u.name, role: u.role, passwordHash },
       create: { email: u.email, name: u.name, role: u.role, passwordHash },
     })
   }

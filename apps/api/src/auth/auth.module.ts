@@ -5,11 +5,12 @@ import { requireSecret } from '../config'
 import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
+import { SessionService } from './session.service'
 
 @Global()
 @Module({
   imports: [
-    // Limite por IP; o login aplica um limite próprio mais estrito (ver AuthController).
+    // Limite por IP; as rotas sensíveis aplicam limites próprios mais estritos.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.RATE_LIMIT ?? 120) }]),
     JwtModule.register({
       global: true,
@@ -18,7 +19,7 @@ import { AuthService } from './auth.service'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard],
-  exports: [AuthGuard],
+  providers: [AuthService, AuthGuard, SessionService],
+  exports: [AuthGuard, SessionService],
 })
 export class AuthModule {}

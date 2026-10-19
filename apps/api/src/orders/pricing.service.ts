@@ -27,6 +27,10 @@ export class PricingService {
       const p = byId.get(i.productId)
       if (!p) throw new BadRequestException(`Produto inexistente: ${i.productId}`)
       if (!p.available) throw new ConflictException(`${p.name} está indisponível`)
+      const removable = new Set(p.removable)
+      for (const r of i.removed) {
+        if (!removable.has(r)) throw new BadRequestException(`Ingrediente não removível em ${p.name}: ${r}`)
+      }
       const extras = i.extraIds.map((eid) => {
         const e = p.extras.find((x) => x.id === eid)
         if (!e) throw new BadRequestException(`Adicional inválido: ${eid}`)

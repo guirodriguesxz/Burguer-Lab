@@ -23,6 +23,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .login form { width: min(380px, 100%); background: var(--card); padding: 32px; border-radius: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 30px rgba(42,26,16,.08); }
 .login label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: .9rem; }
+.field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: .9rem; }
+.pw { position: relative; display: block; }
+.pw input { width: 100%; padding-right: 84px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: transparent; color: var(--muted); font-weight: 600; font-size: .8rem; padding: 6px 8px; border-radius: 8px; }
+.pw-toggle:hover { background: var(--line); }
+.link { background: none; color: var(--muted); text-decoration: underline; padding: 4px; font-size: .9rem; align-self: center; }
+.success { color: var(--ok); font-weight: 600; }
 input { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; background: #fff; }
 .primary { background: var(--brand); color: #fff; font-weight: 700; padding: 12px 18px; border-radius: 12px; }
 .primary:disabled { background: #d9cbbd; cursor: not-allowed; }

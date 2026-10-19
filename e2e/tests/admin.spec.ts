@@ -6,7 +6,7 @@ test.beforeEach(resetState)
 test('login: senha errada é recusada com mensagem genérica', async ({ page }) => {
   await page.goto('/admin/')
   await page.getByLabel('E-mail').fill(CREDS.admin.email)
-  await page.getByLabel('Senha').fill('senha-errada')
+  await page.getByLabel('Senha', { exact: true }).fill('senha-errada')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('alert')).toHaveText('E-mail ou senha incorretos')
   await expect(page.getByRole('button', { name: 'Sair' })).toBeHidden()

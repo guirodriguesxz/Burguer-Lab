@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common'
 import { z } from 'zod'
 import { requireSecret } from '../config'
+import { releaseOrder } from '../orders/order-release'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { signPayload, verifySignature } from './signature'
@@ -71,11 +72,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         data: { status: 'PAID', paidAt: new Date() },
       })
       if (claim.count === 0) return null
-      return tx.order.update({
-        where: { id: payment.orderId },
-        data: { status: 'PAID', history: { create: { from: 'CREATED', to: 'PAID' } } },
-        include: orderInclude,
-      })
+      // Só um pedido ainda "CREATED" pode virar PAID. Se foi cancelado nesse meio tempo, desfaz tudo (rollback):
+      // o webhook responde 409 e a cobrança continua pendente para ser tratada, em vez de "ressuscitar" o pedido.
+      const moved = await tx.order.updateMany({ where: { id: payment.orderId, status: 'CREATED' }, data: { status: 'PAID' } })
+      if (moved.count === 0) throw new ConflictException('Pedido não está mais aguardando pagamento')
+      await tx.orderEvent.create({ data: { orderId: payment.orderId, from: 'CREATED', to: 'PAID' } })
+      return tx.order.findUniqueOrThrow({ where: { id: payment.orderId }, include: orderInclude })
     })
 
     if (!confirmed) return this.confirmPix(txid, amountCents)
@@ -100,15 +102,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           where: { id: p.orderId },
           data: { status: 'CANCELED', history: { create: { from: 'CREATED', to: 'CANCELED' } } },
         })
-        for (const item of p.order.items) {
-          await tx.product.updateMany({
-            where: { id: item.productId, stock: { not: null } },
-            data: { stock: { increment: item.qty } },
-          })
-        }
-        if (p.order.couponCode) {
-          await tx.coupon.updateMany({ where: { code: p.order.couponCode, usedCount: { gt: 0 } }, data: { usedCount: { decrement: 1 } } })
-        }
+        await releaseOrder(tx, p.order)
         return true
       })
       if (done) expired++

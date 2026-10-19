@@ -116,8 +116,14 @@ async function request<T>(path: string, init: RequestInit = {}, token?: string):
 export const login = (email: string, password: string) =>
   request<Session>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 
-export const fetchOrders = (token: string) =>
-  request<Order[]>('/orders?status=PAID,PREPARING,READY,DELIVERED', {}, token)
+export const forgotPassword = (email: string) =>
+  request<{ ok: boolean; message: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+
+export const resetPassword = (token: string, password: string) =>
+  request<{ ok: boolean }>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) })
+
+// Pedidos entregues saem da tela da cozinha, então nem são buscados.
+export const fetchOrders = (token: string) => request<Order[]>('/orders?status=PAID,PREPARING,READY', {}, token)
 
 export const updateOrderStatus = (token: string, id: string, status: OrderStatus) =>
   request<Order>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }, token)

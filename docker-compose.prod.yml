@@ -33,6 +33,11 @@ services:
       SEED_ON_BOOT: ${SEED_ON_BOOT:-true}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?defina ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD (mínimo 12 caracteres)}
+      # Endereço público do app da equipe (link do e-mail de redefinição). Ex.: https://loja.exemplo.com/admin/
+      ADMIN_URL: ${ADMIN_URL:-http://localhost:3000/admin/}
+      # Opcional: envio real de e-mail via Resend. Sem isso o link de redefinição aparece só no log do container.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       KITCHEN_EMAIL: ${KITCHEN_EMAIL:-}
       KITCHEN_PASSWORD: ${KITCHEN_PASSWORD:-}
 
