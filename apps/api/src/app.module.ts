@@ -9,6 +9,7 @@ import { AdminModule } from './admin/admin.module'
 import { PaymentsModule } from './payments/payments.module'
 import { CouponsModule } from './coupons/coupons.module'
 import { DemoController } from './demo/demo.controller'
+import { DemoService } from './demo/demo.service'
 import { HealthController } from './health/health.controller'
 import { MailModule } from './mail/mail.module'
 import { AuditModule } from './audit/audit.module'
@@ -30,5 +31,6 @@ import { ObservabilityModule } from './observability/observability.module'
     AdminModule,
   ],
   controllers: [HealthController, DemoController],
+  providers: [DemoService],
 })
 export class AppModule {}

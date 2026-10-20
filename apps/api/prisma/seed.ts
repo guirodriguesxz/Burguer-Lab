@@ -110,6 +110,12 @@ async function seedDemoUsers() {
       console.warn('Conta de demonstração ignorada:', d.label)
       continue
     }
+    const existing = await prisma.user.findUnique({ where: { email: d.email } })
+    // Nunca rebaixa um admin que não seja o da própria demonstração (e-mail da lista por engano).
+    if (existing?.role === 'ADMIN' && role !== 'ADMIN') {
+      console.warn('Conta de demonstração ignorada (e-mail de um admin existente):', d.label)
+      continue
+    }
     const passwordHash = await bcrypt.hash(d.password, 10)
     await prisma.user.upsert({
       where: { email: d.email },

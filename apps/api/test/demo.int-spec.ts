@@ -50,3 +50,26 @@ describe('modo demonstração (integração)', () => {
     await request(app.getHttpServer()).post(`/api/dev/pix/${order.payment.txid}/pay`).expect(404)
   })
 })
+
+describe('estoque da demonstração (integração)', () => {
+  let prisma: PrismaClient
+  beforeAll(() => {
+    prisma = new PrismaClient()
+  })
+  afterAll(() => prisma.$disconnect())
+
+  it('repõe só o que está abaixo do mínimo e não mexe em estoque ilimitado', async () => {
+    await resetDb(prisma)
+    await prisma.product.update({ where: { id: 'brownie' }, data: { stock: 0 } })
+    await prisma.product.update({ where: { id: 'fries' }, data: { stock: 500 } })
+    await prisma.product.update({ where: { id: 'cola' }, data: { stock: null } })
+
+    const { DemoService, DEMO_MIN_STOCK } = await import('../src/demo/demo.service')
+    await new DemoService(prisma as never).restock()
+
+    const stock = async (id: string) => (await prisma.product.findUniqueOrThrow({ where: { id } })).stock
+    expect(await stock('brownie')).toBe(DEMO_MIN_STOCK)
+    expect(await stock('fries')).toBe(500)
+    expect(await stock('cola')).toBeNull()
+  })
+})
