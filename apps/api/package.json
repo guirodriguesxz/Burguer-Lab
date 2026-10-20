@@ -12,7 +12,7 @@
     "test:int": "jest -c jest.int.config.js",
     "db:local": "node scripts/dev-db.mjs",
     "build:seed": "tsc -p tsconfig.seed.json",
-    "seed:prod": "node dist-seed/seed.js",
+    "seed:prod": "node dist-seed/prisma/seed.js",
     "backup": "node dist/backup/cli.js backup",
     "restore": "node dist/backup/cli.js restore",
     "backup:verify": "node dist/backup/cli.js verify"

@@ -33,7 +33,7 @@ while true; do
 done
 
 if [ "$SEED_ON_BOOT" = "true" ]; then
-  node dist-seed/seed.js || exit 1
+  node dist-seed/prisma/seed.js || exit 1
 fi
 
 exec node dist/main
