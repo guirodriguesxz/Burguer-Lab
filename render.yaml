@@ -26,6 +26,12 @@ services:
         sync: false
       - key: PUBLIC_API_URL
         sync: false
+      # Vitrine do portfólio: liga o Pix de teste e mostra contas de demonstração no login.
+      # DEMO_LOGINS="Admin|email|senha;Cozinha|email|senha" (as contas precisam existir). Não vale com Pix real.
+      - key: DEMO_MODE
+        sync: false
+      - key: DEMO_LOGINS
+        sync: false
       - key: SEED_ON_BOOT
         value: "true"
       - key: ADMIN_URL

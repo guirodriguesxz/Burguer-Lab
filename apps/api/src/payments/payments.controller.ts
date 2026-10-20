@@ -1,4 +1,5 @@
 import { Controller, Headers, HttpCode, NotFoundException, Param, Post, Req } from '@nestjs/common'
+import { isDemoMode } from '../demo/demo'
 import { PaymentsService } from './payments.service'
 
 @Controller()
@@ -12,11 +13,11 @@ export class PaymentsController {
     return this.payments.handleWebhook(req.rawBody ?? Buffer.alloc(0), signature)
   }
 
-  /** Simula o PSP confirmando o pagamento (desligado em produção). */
+  /** Simula o PSP confirmando o pagamento (desligado em produção, exceto no modo demonstração). */
   @Post('dev/pix/:txid/pay')
   @HttpCode(200)
   simulate(@Param('txid') txid: string) {
-    if (process.env.NODE_ENV === 'production') throw new NotFoundException()
+    if (process.env.NODE_ENV === 'production' && !isDemoMode()) throw new NotFoundException()
     return this.payments.simulateProviderPayment(txid)
   }
 }

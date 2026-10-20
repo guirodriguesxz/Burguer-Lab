@@ -66,3 +66,6 @@ export const fetchQueue = () => request<{ preparing: number[]; ready: number[] }
 
 /** Só desenvolvimento: faz o papel do banco/PSP confirmando o Pix via webhook assinado. */
 export const simulatePixPayment = (txid: string) => request<{ ok: boolean }>(`/dev/pix/${txid}/pay`, { method: 'POST' })
+
+/** Modo demonstração: libera o botão que faz o papel do banco no Pix de teste. */
+export const fetchDemo = () => request<{ demo: boolean }>('/demo')

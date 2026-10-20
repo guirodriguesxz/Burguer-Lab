@@ -165,3 +165,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .audit-details { font-size: .85rem; color: var(--muted); max-width: 420px; word-break: break-word; }
 
 .dialog:focus { outline: none; }
+
+.demo-logins { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line, #ccc); }
+.demo-logins p { flex-basis: 100%; margin: 0; }

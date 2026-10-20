@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import {
   ApiError,
   createOrder,
+  fetchDemo,
   fetchOrderStatus,
   isNetworkError,
   simulatePixPayment,
@@ -61,6 +62,10 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
   const [qr, setQr] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
   const clientRef = useRef(newClientRef())
+  const [demo, setDemo] = useState(false)
+  useEffect(() => {
+    fetchDemo().then((d) => setDemo(d.demo)).catch(() => {})
+  }, [])
 
   const subtotal = cart.reduce((s, i) => s + lineTotal(i), 0)
   const discount = coupon?.valid ? (coupon.discountCents ?? 0) : 0
@@ -268,9 +273,9 @@ export default function Checkout({ cart, mode, online, onBack, onPaid }: Props) 
           {qr && <img className="qr-img" src={qr} alt={t('pay.pixQrAlt')} />}
           <p>{t('pay.pixScan', { amount: brl(pixOrder.totalCents) })}</p>
           <p className="muted">{t('pay.pixExpires', { time: mmss(expiresAt - now) })}</p>
-          {import.meta.env.DEV && pixOrder.payment?.txid && (
+          {(import.meta.env.DEV || demo) && pixOrder.payment?.txid && (
             <button className="btn-ghost small" onClick={() => simulatePixPayment(pixOrder.payment!.txid!)}>
-              [dev] Simular pagamento no app do banco
+              {t('pay.simulate')}
             </button>
           )}
           <button className="btn-ghost" onClick={onBack}>{t('pay.cancel')}</button>

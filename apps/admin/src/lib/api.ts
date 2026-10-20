@@ -281,3 +281,9 @@ export interface AuditPage {
 }
 
 export const fetchAudit = (f: AuditFilters) => request<AuditPage>(`/admin/audit${toQuery(f)}`)
+
+export interface DemoInfo {
+  demo: boolean
+  logins: { label: string; email: string; password: string }[]
+}
+export const fetchDemo = () => request<DemoInfo>('/demo')

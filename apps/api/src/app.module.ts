@@ -8,6 +8,7 @@ import { RealtimeModule } from './realtime/realtime.module'
 import { AdminModule } from './admin/admin.module'
 import { PaymentsModule } from './payments/payments.module'
 import { CouponsModule } from './coupons/coupons.module'
+import { DemoController } from './demo/demo.controller'
 import { HealthController } from './health/health.controller'
 import { MailModule } from './mail/mail.module'
 import { AuditModule } from './audit/audit.module'
@@ -28,6 +29,6 @@ import { ObservabilityModule } from './observability/observability.module'
     CouponsModule,
     AdminModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, DemoController],
 })
 export class AppModule {}

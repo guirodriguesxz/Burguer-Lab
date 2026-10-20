@@ -81,6 +81,7 @@ const pt = {
   'pay.tryAgain': 'Tentar de novo',
   'pay.failed': 'Falha ao finalizar o pedido',
   'pay.noConnectionPix': 'Sem conexão. Tente o cartão ou chame um atendente.',
+  'pay.simulate': 'Demonstração: simular pagamento no app do banco',
 
   'err.unavailable': 'Um item ficou indisponível. Volte e revise o pedido.',
   'err.invalid': 'Não foi possível processar o pedido. Revise os itens.',
@@ -193,6 +194,7 @@ const en: Record<MessageKey, string> = {
   'pay.tryAgain': 'Try again',
   'pay.failed': 'Could not complete the order',
   'pay.noConnectionPix': 'No connection. Try card or call an attendant.',
+  'pay.simulate': 'Demo: simulate payment in the bank app',
 
   'err.unavailable': 'An item became unavailable. Go back and review your order.',
   'err.invalid': 'Could not process the order. Please review the items.',

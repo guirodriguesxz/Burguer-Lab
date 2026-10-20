@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import PasswordInput from '../components/PasswordInput'
-import { forgotPassword, login, resetPassword, type Session } from '../lib/api'
+import { fetchDemo, forgotPassword, login, type DemoInfo, resetPassword, type Session } from '../lib/api'
 
 type Mode = 'login' | 'forgot' | 'forgot-sent' | 'reset'
 
@@ -15,6 +15,10 @@ export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [demo, setDemo] = useState<DemoInfo | null>(null)
+  useEffect(() => {
+    fetchDemo().then(setDemo).catch(() => {})
+  }, [])
 
   const go = (next: Mode) => {
     setMode(next)
@@ -74,6 +78,16 @@ export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
           <PasswordInput label="Senha" value={password} onChange={setPassword} autoComplete="current-password" />
           {error && <p role="alert" className="error">{error}</p>}
           <button className="primary" disabled={loading}>{loading ? 'Entrando…' : 'Entrar'}</button>
+          {demo?.demo && demo.logins.length > 0 && (
+            <section className="demo-logins" aria-label="Contas de demonstração">
+              <p className="muted">Demonstração: escolha um perfil para preencher o login.</p>
+              {demo.logins.map((l) => (
+                <button key={l.email} type="button" className="ghost" onClick={() => (setEmail(l.email), setPassword(l.password))}>
+                  {l.label}
+                </button>
+              ))}
+            </section>
+          )}
           <button type="button" className="link" onClick={() => go('forgot')}>Esqueci minha senha</button>
         </form>
       )}
