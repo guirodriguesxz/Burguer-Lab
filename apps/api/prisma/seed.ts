@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
+import { demoLogins, demoRole } from '../src/demo/demo'
 
 const prisma = new PrismaClient()
 
@@ -95,7 +96,31 @@ function buildUsers() {
 }
 const users = buildUsers()
 
+/**
+ * Modo demonstração: garante as contas de DEMO_LOGINS com a senha publicada na tela de login. Diferente das contas
+ * reais, estas são redefinidas a cada início (a senha é pública e qualquer visitante pode ter mudado). Nunca toca
+ * numa conta real: se o e-mail for o de ADMIN/KITCHEN/CASHIER_EMAIL, é ignorada.
+ */
+async function seedDemoUsers() {
+  const real = new Set([process.env.ADMIN_EMAIL, process.env.KITCHEN_EMAIL, process.env.CASHIER_EMAIL].filter(Boolean))
+  for (const d of demoLogins()) {
+    const role = demoRole(d.label)
+    if (!role || real.has(d.email)) {
+      console.warn('Conta de demonstração ignorada:', d.label)
+      continue
+    }
+    const passwordHash = await bcrypt.hash(d.password, 10)
+    await prisma.user.upsert({
+      where: { email: d.email },
+      update: { name: d.label, role, passwordHash, active: true, tokenVersion: { increment: 1 } },
+      create: { email: d.email, name: d.label, role, passwordHash },
+    })
+    console.log('Conta de demonstração pronta:', d.label)
+  }
+}
+
 async function main() {
+  await seedDemoUsers()
   for (const u of users) {
     const passwordHash = await bcrypt.hash(u.password, 10)
     await prisma.user.upsert({

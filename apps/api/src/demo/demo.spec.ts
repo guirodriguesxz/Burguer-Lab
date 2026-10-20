@@ -1,4 +1,4 @@
-import { demoLogins, isDemoMode } from './demo'
+import { demoLogins, demoRole, isDemoMode } from './demo'
 
 describe('modo demonstração', () => {
   it('só liga com DEMO_MODE=true', () => {
@@ -21,5 +21,14 @@ describe('modo demonstração', () => {
 
   it('não expõe conta nenhuma fora do modo demo', () => {
     expect(demoLogins({ DEMO_LOGINS: 'Admin|a@x.com|senha1' })).toEqual([])
+  })
+})
+
+describe('perfil da conta de demonstração', () => {
+  it('deduz o perfil do rótulo e recusa rótulo desconhecido', () => {
+    expect(demoRole('Cozinha')).toBe('KITCHEN')
+    expect(demoRole(' caixa ')).toBe('CASHIER')
+    expect(demoRole('Admin')).toBe('ADMIN')
+    expect(demoRole('Dono')).toBeNull()
   })
 })

@@ -22,3 +22,16 @@ export function demoLogins(env: NodeJS.ProcessEnv = process.env): DemoLogin[] {
     .filter((p) => p.length === 3 && p.every(Boolean))
     .map(([label, email, password]) => ({ label, email, password }))
 }
+
+export type DemoRole = 'ADMIN' | 'KITCHEN' | 'CASHIER'
+
+const ROLE_BY_LABEL: Record<string, DemoRole> = {
+  admin: 'ADMIN',
+  cozinha: 'KITCHEN',
+  kitchen: 'KITCHEN',
+  caixa: 'CASHIER',
+  cashier: 'CASHIER',
+}
+
+/** Perfil de uma conta de demonstração, deduzido do rótulo (Admin, Cozinha, Caixa); rótulo desconhecido não vira conta. */
+export const demoRole = (label: string): DemoRole | null => ROLE_BY_LABEL[label.trim().toLowerCase()] ?? null

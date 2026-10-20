@@ -133,7 +133,7 @@ A imagem aplica as migrações ao iniciar e, com `SEED_ON_BOOT=true`, faz o seed
 | `METRICS_TOKEN` | protege `/metrics` (sem ele, o endpoint não é exposto) |
 | `SENTRY_DSN`, `LOG_LEVEL` | relatório de erros (opcional) e nível de log |
 | `AUDIT_RETENTION_DAYS`, `COOKIE_SECURE` | retenção da auditoria; força o flag Secure do cookie |
-| `DEMO_MODE`, `DEMO_LOGINS` | vitrine: com `DEMO_MODE=true` o Pix de teste funciona em produção e o login mostra as contas de `DEMO_LOGINS` (`Rótulo|email|senha;...`); ignorado com Pix real |
+| `DEMO_MODE`, `DEMO_LOGINS` | vitrine: com `DEMO_MODE=true` o Pix de teste funciona em produção e o login mostra as contas de `DEMO_LOGINS` (`Rótulo|email|senha;...`); as contas são criadas e redefinidas a cada início (perfil pelo rótulo: Admin, Cozinha, Caixa); ignorado com Pix real |
 | `CORS_ORIGIN` | origens permitidas, separadas por vírgula (padrão: qualquer) |
 
 ## Roadmap
