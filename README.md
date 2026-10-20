@@ -1,38 +1,84 @@
-# Burger Lab: sistema de autoatendimento
+# 🍔 Burger Lab: totem de autoatendimento
 
-Sistema completo de **totem de autoatendimento para lanchonete**: o cliente pede e paga sozinho (cartão ou Pix), a cozinha recebe o pedido ao vivo, e a gerência controla cardápio, estoque, cupons e relatórios. Foi construído como projeto de portfólio com preocupações de produção: consistência de dados, segurança, funcionamento offline, testes em três camadas, CI e deploy em um único container.
+[![CI](https://github.com/guirodriguesxz/Burguer-Lab/actions/workflows/ci.yml/badge.svg)](https://github.com/guirodriguesxz/Burguer-Lab/actions/workflows/ci.yml)
+
+Sistema completo de **totem de autoatendimento para lanchonete**: o cliente pede e paga sozinho (Pix, cartão ou no caixa), a cozinha recebe o pedido ao vivo, e a gerência controla cardápio, estoque, cupons e relatórios. Projeto de portfólio feito com preocupações de produção: consistência de dados, segurança, funcionamento offline, testes em três camadas, CI, Docker e deploy.
+
+**[▶ Ver a demonstração ao vivo](https://burguer-lab.onrender.com)** · [Painel da equipe](https://burguer-lab.onrender.com/admin/) · [Tela de senhas (TV)](https://burguer-lab.onrender.com/#/senhas)
+
+> O servidor gratuito "dorme" quando ninguém acessa: a primeira visita pode levar cerca de 30 segundos para carregar.
+
+## Teste em 1 minuto
+
+1. Abra o [totem](https://burguer-lab.onrender.com), escolha **Comer aqui**, monte um pedido e vá para o pagamento.
+2. Escolha **Pix** e toque em **Demonstração: simular pagamento no app do banco** (faz o papel do banco confirmando o pagamento, pelo mesmo webhook assinado do fluxo real).
+3. Abra o [painel](https://burguer-lab.onrender.com/admin/) numa outra aba e entre pelos botões **Cozinha** ou **Caixa**: o pedido aparece ao vivo, sem recarregar. Mude o status e veja a [tela de senhas](https://burguer-lab.onrender.com/#/senhas) chamar o número.
+4. No topo do totem, troque o idioma para **English** ou ligue o **alto contraste** e o **texto maior**.
+
+É um ambiente de demonstração: o Pix e o cartão são simulados, e os relatórios vêm com 14 dias de pedidos de exemplo.
+
+## Como é
+
+| Totem: cardápio e carrinho | Personalização do item |
+| --- | --- |
+| ![Cardápio e carrinho do totem](docs/img/03-totem-cardapio.png) | ![Personalizar o item](docs/img/02-totem-personalizar.png) |
+
+| Pix com QR Code | Senha do pedido |
+| --- | --- |
+| ![Pagamento por Pix](docs/img/05-totem-pix.png) | ![Senha do pedido](docs/img/06-totem-senha.png) |
+
+| Inglês + alto contraste | Tela de senhas (TV) |
+| --- | --- |
+| ![Totem em inglês com alto contraste](docs/img/07-totem-ingles-alto-contraste.png) | ![Tela de senhas](docs/img/08-tela-de-senhas.png) |
+
+| Cozinha ao vivo | Relatórios |
+| --- | --- |
+| ![Cozinha ao vivo](docs/img/10-painel-cozinha.png) | ![Relatórios](docs/img/11-painel-relatorios.png) |
+
+| Histórico de pedidos | Auditoria |
+| --- | --- |
+| ![Histórico de pedidos](docs/img/12-painel-historico.png) | ![Trilha de auditoria](docs/img/14-painel-auditoria.png) |
+
+## Em números
+
+- **~260 testes automatizados**: unitários, integração contra Postgres real e E2E com Chrome/Edge real contra o artefato de produção (inclui PWA offline, Pix com webhook assinado e varredura de acessibilidade axe-core, WCAG 2.1 AA).
+- **CI** no GitHub Actions: typecheck, testes, E2E e um job que sobe o container de produção e faz smoke test.
+- **Uma imagem Docker** serve API e os dois front-ends; deploy no Render com PostgreSQL no Neon.
+
+## Arquitetura
 
 ```mermaid
 flowchart LR
   subgraph Cliente
-    K[Totem PWA<br/>React + TS]
+    K[Totem PWA<br/>React + TS<br/>PT/EN · alto contraste]
+    TV[Tela de senhas]
   end
   subgraph Equipe
-    A[App da equipe<br/>cozinha ao vivo · cardápio · cupons · relatórios]
+    A[App da equipe<br/>cozinha · caixa · cardápio<br/>cupons · relatórios · auditoria]
   end
   K -- REST + Socket.IO --> API
-  A -- REST + Socket.IO + JWT --> API
+  TV -- Socket.IO --> API
+  A -- REST + Socket.IO<br/>cookie HttpOnly --> API
   PSP[Provedor Pix] -- webhook assinado --> API
-  API[API NestJS] --> DB[(PostgreSQL)]
+  API[API NestJS<br/>logs · métricas · auditoria] --> DB[(PostgreSQL)]
 ```
 
 | Pacote | Descrição |
 | --- | --- |
-| `apps/kiosk` | Totem do cliente (React + TypeScript + Vite), instalável como PWA e com modo offline |
-| `apps/admin` | App da equipe: login, cozinha ao vivo (KDS), cardápio/estoque, cupons e relatórios |
+| `apps/kiosk` | Totem do cliente (React + TypeScript + Vite), PWA com modo offline, inglês/português, alto contraste |
+| `apps/admin` | App da equipe: cozinha ao vivo (KDS), caixa, pedidos, cardápio, cupons, usuários, relatórios e auditoria |
 | `apps/api` | API REST + WebSocket (NestJS, Prisma, PostgreSQL); em produção também serve os dois front-ends |
 | `e2e` | Testes ponta a ponta (Playwright) contra o artefato de produção |
 
 ## Funcionalidades
 
-- **Totem**: comer aqui/levar, cardápio por categoria, personalização (remover ingredientes, adicionais), carrinho, **upsell** orientado por vendas, **cupom**, pagamento por **cartão** ou **Pix (QR Code)**, senha do pedido, timeout de inatividade, interface própria para toque (alvos grandes, foco visível, `aria-label`).
+- **Totem**: comer aqui/levar, cardápio por categoria, personalização (remover ingredientes, adicionais), carrinho, **upsell** orientado por vendas, **cupom**, pagamento por **Pix (QR Code)**, **cartão** ou **no caixa**, senha do pedido, timeout de inatividade, interface própria para toque (alvos grandes, foco visível, `aria-label`).
 - **Cozinha ao vivo**: pedidos novos e mudanças de status chegam por WebSocket, sem recarregar.
-- **Gestão**: pausar produto, ajustar preço e estoque (refletem no totem na hora), cupons (percentual/fixo, mínimo, limite de usos, validade) e relatórios (faturamento, ticket médio, pedidos por hora, mais vendidos).
+- **Gestão**: cadastro de produtos, adicionais e categorias (com tradução para inglês), pausar produto, preço e estoque (refletem no totem na hora), cupons (percentual/fixo, mínimo, limite de usos, validade) e relatórios (faturamento, ticket médio, pedidos por hora, mais vendidos).
 - **Offline**: o totem abre sem internet, usa a última cópia do cardápio e aceita pedidos no cartão numa fila local que sincroniza ao reconectar.
-
-- **Caixa e operação**: pagamento no caixa com senha, senha diária, tela de senhas chamadas, impressão de comprovante, usuários e troca de senha, histórico de pedidos com CSV, cadastro de produtos/adicionais/categorias, reembolso.
+- **Caixa e operação**: pagamento no caixa com senha, senha diária, tela de senhas chamadas, impressão de comprovante, usuários e troca de senha, histórico de pedidos com CSV, reembolso.
 - **Produção**: sessão em cookie HttpOnly com logout que revoga, trilha de auditoria, logs estruturados, métricas Prometheus, Sentry opcional, backup criptografado. Veja [docs/OPERACAO.md](docs/OPERACAO.md).
-- **Acessibilidade e idiomas**: totem em português e inglês (nomes e descrições do cardápio traduzíveis pelo painel), alto contraste, texto maior, navegação por teclado, varredura axe-core (WCAG 2.1 AA) nos testes.
+- **Acessibilidade e idiomas**: totem em português e inglês, alto contraste, texto maior, navegação por teclado e varredura automatizada (WCAG 2.1 AA).
 
 ## Decisões de projeto
 
@@ -85,7 +131,7 @@ npm run dev:kiosk   # http://localhost:5173
 npm run dev:admin   # http://localhost:5174
 ```
 
-Usuários de desenvolvimento (seed): `admin@burgerlab.dev` / `admin123`, `cozinha@burgerlab.dev` / `cozinha123` e `caixa@burgerlab.dev` / `caixa123`. Cupons de exemplo: `BEMVINDO10`, `LANCHE5` (mínimo R$ 30), `ULTIMO` (1 uso). Em dev, o totem mostra um botão para simular o banco confirmando o Pix.
+Usuários de desenvolvimento (seed): `admin@burgerlab.dev` / `admin123`, `cozinha@burgerlab.dev` / `cozinha123` e `caixa@burgerlab.dev` / `caixa123`. Cupons de exemplo: `BEMVINDO10`, `LANCHE5` (mínimo R$ 30), `ULTIMO` (1 uso). Em dev, o totem mostra um botão para simular o banco confirmando o Pix. Para gerar dados de exemplo localmente: `DEMO_MODE=true DEMO_LOGINS="Cozinha|c@x.com|senha" npx prisma db seed`.
 
 ## Testes
 

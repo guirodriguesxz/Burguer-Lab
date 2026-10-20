@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
-import { demoLogins, demoRole } from '../src/demo/demo'
+import { demoLogins, demoRole, isDemoMode } from '../src/demo/demo'
+import { seedDemoOrders } from './demo-orders'
 
 const prisma = new PrismaClient()
 
@@ -150,6 +151,13 @@ async function main() {
         await prisma.extra.upsert({ where: { id: e.id }, update: e, create: { ...e, productId: p.id } })
       }
     }
+  }
+  if (isDemoMode()) {
+    // Vitrine: cupons e 14 dias de pedidos de exemplo para os relatórios e o histórico não nascerem vazios.
+    for (const c of coupons.filter((x) => !x.maxUses)) {
+      await prisma.coupon.upsert({ where: { code: c.code }, update: {}, create: c })
+    }
+    console.log('Pedidos de demonstração:', await seedDemoOrders(prisma))
   }
   console.log('Seed concluído')
 }
